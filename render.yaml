@@ -9,7 +9,11 @@ services:
     healthCheckPath: /health
     autoDeploy: true
     envVars:
+      - key: ENVIRONMENT
+        value: production
       - key: DATABASE_URL
         sync: false
       - key: ADMIN_KEY
         sync: false
+      - key: CORS_ORIGINS
+        value: https://efootball2026.online,https://www.efootball2026.online
