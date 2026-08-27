@@ -1,0 +1,4 @@
+import type { Metadata } from 'next';
+import './globals.css';
+export const metadata: Metadata = { title: 'eFootball 2026 • Free Community Tournaments', description: 'Join free 8-player eFootball Mobile community tournaments.', metadataBase: new URL('https://www.efootball2026.online') };
+export default function RootLayout({ children }: Readonly<{children: React.ReactNode}>) { return <html lang="en"><body>{children}</body></html>; }
