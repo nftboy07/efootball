@@ -44,7 +44,7 @@ def check_connection():
 
 def rows(q,args=()):
     with _conn() as c:
-        cur=c.cursor(); cur.execute(_sql(q),args); out=cur.fetchall(); names=[d.name for d in cur.description]
+        cur=c.cursor(); cur.execute(_sql(q),args); out=cur.fetchall(); names=[d[0] for d in cur.description]
         return [dict(r) if isinstance(r,sqlite3.Row) else dict(zip(names,r)) for r in out]
 
 def one(q,args=()):
