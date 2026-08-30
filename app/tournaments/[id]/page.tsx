@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-const API=process.env.NEXT_PUBLIC_API_URL||'https://efootball-tournament.onrender.com';
+const API=process.env.NEXT_PUBLIC_API_URL||'https://efootball-tournament-kwq4.onrender.com';
 async function api(path:string,init?:RequestInit){const r=await fetch(API+path,init);const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.detail||'Request failed');return d}
 const tournamentImages=[
   {src:'https://images.unsplash.com/photo-1517466787929-bc90951d0974?auto=format&fit=crop&w=900&q=85',label:'Match night',title:'Play under the lights',alt:'Football stadium under lights'},
