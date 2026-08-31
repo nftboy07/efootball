@@ -33,4 +33,8 @@ def test_full_lifecycle():
         pending=client.get('/api/admin/submissions',headers=admin).json()
         assert len(pending)==1
         assert client.post(f"/api/admin/submissions/{pending[0]['id']}/confirm",headers=admin).status_code==200
-        assert client.get('/health').json()['status']=='ok'
+        health=client.get('/health').json()
+        assert health['status']=='ok'
+        assert health['durable_storage'] is False
+        assert client.get('/ready').json()['status']=='ready'
+        assert client.get('/version').json()['service']=='efootball-tournament-api'

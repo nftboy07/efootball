@@ -42,6 +42,13 @@ def health():
     except Exception:raise HTTPException(503,'Database unavailable')
     database='postgres' if os.getenv('DATABASE_URL') else 'local-sqlite'
     return {'status':'ok','environment':ENV,'database':database,'durable_storage':database=='postgres'}
+@app.get('/ready')
+def ready():
+    try:db.check_connection()
+    except Exception:raise HTTPException(503,'Database unavailable')
+    return {'status':'ready'}
+@app.get('/version')
+def version():return {'service':'efootball-tournament-api','version':app.version,'environment':ENV}
 @app.get('/api/tournaments')
 def tournaments():return db.list_tournaments()
 @app.get('/api/tournaments/{tid}')
