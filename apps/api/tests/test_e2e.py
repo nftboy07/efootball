@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 
 def test_full_registration_and_bracket_flow():
+    os.environ['ADMIN_KEY']='test-admin-key'
     if os.path.exists('test-efootball.db'): os.remove('test-efootball.db')
     with TestClient(app) as client:
         r=client.post('/api/admin/tournaments',json={'name':'Smoke Cup'},headers={'X-Admin-Key':'test-admin-key'})

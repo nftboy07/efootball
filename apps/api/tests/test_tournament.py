@@ -11,6 +11,7 @@ from app import db
 
 
 def test_full_lifecycle():
+    os.environ['ADMIN_KEY']='test-admin-secret'
     db.init()
     with TestClient(app) as client:
         admin={'X-Admin-Key':'test-admin-secret'}

@@ -1,5 +1,6 @@
 import os
-from fastapi import FastAPI, HTTPException, Header
+import time
+from fastapi import FastAPI, HTTPException, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from . import db
@@ -29,11 +30,18 @@ def player(k):
     if not p:raise HTTPException(401,'Invalid player token')
     return p
 
+registration_attempts={}
+def allow_registration(request):
+    now=time.monotonic(); ip=request.client.host if request.client else 'unknown'; recent=[stamp for stamp in registration_attempts.get(ip,[]) if now-stamp<60]
+    if len(recent)>=30:raise HTTPException(429,'Too many registration attempts. Try again shortly.')
+    recent.append(now); registration_attempts[ip]=recent
+
 @app.get('/health')
 def health():
     try:db.check_connection()
     except Exception:raise HTTPException(503,'Database unavailable')
-    return {'status':'ok','environment':ENV,'database':'postgres' if os.getenv('DATABASE_URL') else 'local-sqlite'}
+    database='postgres' if os.getenv('DATABASE_URL') else 'local-sqlite'
+    return {'status':'ok','environment':ENV,'database':database,'durable_storage':database=='postgres'}
 @app.get('/api/tournaments')
 def tournaments():return db.list_tournaments()
 @app.get('/api/tournaments/{tid}')
@@ -45,7 +53,8 @@ def tournament(tid):
 def create_tournament(data:TournamentCreate,x_admin_key:str|None=Header(default=None)):
     admin(x_admin_key); t=db.create_tournament(data.name); db.audit('TOURNAMENT_CREATED','admin',t['id'],{'name':data.name}); return t
 @app.post('/api/tournaments/{tid}/players')
-def register(tid:str,data:PlayerCreate):
+def register(tid:str,data:PlayerCreate,request:Request):
+    allow_registration(request)
     result,error=db.register(tid,data.display_name,data.efootball_username)
     if error:raise HTTPException(404 if error=='TOURNAMENT_NOT_FOUND' else 409,error)
     db.audit('PLAYER_REGISTERED',result['player']['id'],tid,{}); return result
