@@ -1,0 +1,2 @@
+import type { MetadataRoute } from 'next';
+export default function sitemap():MetadataRoute.Sitemap{return[{url:'https://www.efootball2026.online',lastModified:new Date(),changeFrequency:'daily',priority:1},{url:'https://www.efootball2026.online/#tournaments',lastModified:new Date(),changeFrequency:'hourly',priority:.9},{url:'https://www.efootball2026.online/admin',lastModified:new Date(),changeFrequency:'monthly',priority:.2}]}

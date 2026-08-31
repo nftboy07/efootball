@@ -32,7 +32,9 @@ Set these environment variables on the web service:
 - `DATABASE_URL` = your Supabase Postgres connection string
 - `ADMIN_KEY` = a long random secret you choose
 
-The application creates its tables automatically on startup.
+The application creates its tables automatically on startup. For production durability, set `DATABASE_URL` to a managed PostgreSQL database; local SQLite is only a development fallback and is not durable on Render free instances.
+
+Use `/health` for service/storage status, `/ready` for deployment readiness, and `/version` for the running API version. Configure an external uptime monitor against `/ready` and `/api/tournaments`.
 
 ### 3. Admin workflow
 1. Open the website.
