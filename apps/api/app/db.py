@@ -79,6 +79,8 @@ def register(tid,name,ef):
             if trow[0]!='OPEN':return None,'REGISTRATION_CLOSED'
             count=cur.execute(_sql('SELECT COUNT(*) FROM tournament_players WHERE tournament_id=?'),(tid,)).fetchone()[0]
             if count>=8:return None,'TOURNAMENT_FULL'
+            duplicate=cur.execute(_sql('SELECT 1 FROM players p JOIN tournament_players tp ON tp.player_id=p.id WHERE tp.tournament_id=? AND lower(p.efootball_username)=lower(?)'),(tid,ef)).fetchone()
+            if duplicate:return None,'ALREADY_REGISTERED'
             pid='P-'+secrets.token_hex(4).upper(); token=secrets.token_urlsafe(32)
             cur.execute(_sql('INSERT INTO players VALUES(?,?,?,?,?)'),(pid,name,ef,token,now())); cur.execute(_sql('INSERT INTO tournament_players VALUES(?,?,?)'),(tid,pid,now()))
             if count+1==8:cur.execute(_sql("UPDATE tournaments SET status='FULL' WHERE id=?"),(tid,))
@@ -115,7 +117,7 @@ def submit(match_id,player,sa,sb,evidence,note):
     m=one('SELECT * FROM matches WHERE id=?',(match_id,))
     if not m:return None,'MATCH_NOT_FOUND'
     if player not in (m['player_a'],m['player_b']):return None,'NOT_A_PLAYER'
-    if m['status'] in ('CONFIRMED','CANCELLED','DISPUTED'):return None,'MATCH_CLOSED'
+    if m['status']!='READY':return None,'MATCH_NOT_READY'
     if one("SELECT 1 AS x FROM submissions WHERE match_id=? AND status='PENDING'",(match_id,)):return None,'RESULT_ALREADY_PENDING'
     sid='S-'+secrets.token_hex(5).upper(); exec('INSERT INTO submissions VALUES(?,?,?,?,?,?,?,?,?)',(sid,match_id,player,sa,sb,evidence,note,'PENDING',now())); exec("UPDATE matches SET status='UNDER_REVIEW' WHERE id=?",(match_id,)); return one('SELECT * FROM submissions WHERE id=?',(sid,)),None
 

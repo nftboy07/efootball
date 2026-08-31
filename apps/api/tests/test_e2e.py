@@ -17,10 +17,12 @@ def test_full_registration_and_bracket_flow():
             r=client.post(f'/api/tournaments/{tid}/players',json={'display_name':f'Player {i+1}','efootball_username':f'ef_{i+1}'})
             assert r.status_code==200
             player_tokens.append(r.json()['player']['token'])
+        assert client.post(f'/api/tournaments/{tid}/players',json={'display_name':'Duplicate','efootball_username':'EF_1'}).status_code==409
         assert client.post(f'/api/tournaments/{tid}/players',json={'display_name':'Player 9','efootball_username':'ef_9'}).status_code==409
         assert client.post(f'/api/admin/tournaments/{tid}/bracket',headers={'X-Admin-Key':'test-admin-key'}).status_code==200
         assert client.post(f'/api/admin/tournaments/{tid}/efootball-id',json={'tournament_id':'GAME-1234'},headers={'X-Admin-Key':'test-admin-key'}).status_code==200
         matches=client.get(f'/api/tournaments/{tid}/matches').json()
+        assert client.post(f"/api/matches/{matches[0]['id']}/result",json={'score_a':2,'score_b':1,'evidence_url':'file:///secret.png'},headers={'X-Player-Token':player_tokens[0]}).status_code==422
         assert len(matches)==4
         # Non-participants cannot submit a result.
         assert client.post(f"/api/matches/{matches[0]['id']}/result",json={'score_a':2,'score_b':1},headers={'X-Player-Token':player_tokens[4]}).status_code==409

@@ -1,12 +1,30 @@
 import os
 import time
+import uuid
+import hashlib
 from fastapi import FastAPI, HTTPException, Header, Request
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from . import db
 
 ENV=os.getenv('ENVIRONMENT','development').lower()
 app=FastAPI(title='eFootball Community Tournament Platform',version='1.1.0')
+class RequestSafetyMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self,request,call_next):
+        request_id=request.headers.get('X-Request-ID') or str(uuid.uuid4())
+        content_length=request.headers.get('content-length')
+        if content_length and content_length.isdigit() and int(content_length)>1024*1024:
+            response=JSONResponse({'detail':'Request body too large'},status_code=413)
+        else:
+            response=await call_next(request)
+        response.headers['X-Request-ID']=request_id
+        response.headers['X-Content-Type-Options']='nosniff'
+        response.headers['X-Frame-Options']='DENY'
+        response.headers['Referrer-Policy']='strict-origin-when-cross-origin'
+        return response
+app.add_middleware(RequestSafetyMiddleware)
 origins={'https://efootball2026.online','https://www.efootball2026.online'}
 origins.update(x.strip() for x in os.getenv('CORS_ORIGINS','').split(',') if x.strip())
 app.add_middleware(CORSMiddleware,allow_origins=sorted(origins),allow_credentials=False,allow_methods=['GET','POST','OPTIONS'],allow_headers=['Content-Type','X-Player-Token','X-Admin-Key'])
@@ -14,7 +32,17 @@ app.add_middleware(CORSMiddleware,allow_origins=sorted(origins),allow_credential
 class TournamentCreate(BaseModel): name:str=Field(min_length=2,max_length=100)
 class PlayerCreate(BaseModel): display_name:str=Field(min_length=2,max_length=40); efootball_username:str=Field(min_length=1,max_length=60)
 class EfootballCode(BaseModel): tournament_id:str=Field(min_length=1,max_length=100)
-class ResultCreate(BaseModel): score_a:int=Field(ge=0,le=99); score_b:int=Field(ge=0,le=99); evidence_url:str|None=Field(default=None,max_length=1000); note:str|None=Field(default=None,max_length=500)
+class ResultCreate(BaseModel):
+    score_a:int=Field(ge=0,le=99)
+    score_b:int=Field(ge=0,le=99)
+    evidence_url:str|None=Field(default=None,max_length=1000)
+    note:str|None=Field(default=None,max_length=500)
+
+    @field_validator('evidence_url')
+    @classmethod
+    def validate_evidence(cls,value):
+        if value and not value.startswith(('https://','http://')): raise ValueError('Evidence URL must use HTTP or HTTPS')
+        return value
 class DisputeCreate(BaseModel): reason:str=Field(min_length=5,max_length=1000)
 
 @app.on_event('startup')
@@ -23,8 +51,13 @@ def startup():
         raise RuntimeError('DATABASE_URL and ADMIN_KEY are required in production')
     db.init(); db.check_connection()
 
+admin_failures={}
 def admin(k):
-    if not db.auth_admin(k):raise HTTPException(401,'Admin authentication required')
+    fingerprint=hashlib.sha256((k or 'missing').encode()).hexdigest(); now=time.monotonic(); recent=[stamp for stamp in admin_failures.get(fingerprint,[]) if now-stamp<300]
+    if len(recent)>=5:raise HTTPException(429,'Too many failed admin attempts. Try again later.')
+    if not db.auth_admin(k):
+        recent.append(now); admin_failures[fingerprint]=recent
+        raise HTTPException(401,'Admin authentication required')
 def player(k):
     p=db.auth_player(k)
     if not p:raise HTTPException(401,'Invalid player token')
