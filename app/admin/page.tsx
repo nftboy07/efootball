@@ -36,6 +36,21 @@ export default function Admin() {
   const [imageUrl, setImageUrl] = useState('');
   const [copy, setCopy] = useState('');
   const [generating, setGenerating] = useState(false);
+  const [videoProgress, setVideoProgress] = useState<{
+    active: boolean;
+    taskId?: string;
+    elapsed: number;
+    estimated: number;
+    pct: number;
+    phase: string;
+  }>({
+    active: false,
+    elapsed: 0,
+    estimated: 60,
+    pct: 0,
+    phase: '',
+  });
+
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [selected, setSelected] = useState('');
   const [msg, setMsg] = useState('');
@@ -107,27 +122,109 @@ export default function Admin() {
     setGenerating(true);
     setVideoUrl('');
     setImageUrl('');
-    setMsg('Synthesizing media with Alibaba Wan 2.1… (takes ~30-60s)');
-    try {
-      const isVideo = provider.startsWith('wan-video') || provider === 'veo-video';
-      const endpoint = isVideo ? '/api/generate-reel' : '/api/generate-media';
-      const model = provider === 'wan-video-plus' ? 'wan2.1-t2v-plus' : 'wan2.1-t2v-turbo';
-      const payload = isVideo ? { prompt, aspectRatio, model } : { prompt, provider, aspectRatio };
+    setMsg('');
 
-      const r = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+    const isVideo = provider.startsWith('wan-video');
+    const model = provider === 'wan-video-plus' ? 'wan2.1-t2v-plus' : 'wan2.1-t2v-turbo';
+    const estimated = model === 'wan2.1-t2v-plus' ? 90 : 60;
+
+    let timerInterval: any = null;
+
+    if (isVideo) {
+      let seconds = 0;
+      setVideoProgress({
+        active: true,
+        elapsed: 0,
+        estimated,
+        pct: 5,
+        phase: '🚀 Initializing Alibaba Wan 2.1 GPU cluster…',
       });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error || 'Generation failed');
 
-      const url = d.video?.url || d.media?.url || d.url || '';
-      if (isVideo) setVideoUrl(url);
-      else setImageUrl(url);
+      timerInterval = setInterval(() => {
+        seconds += 1;
+        const currentPct = Math.min(97, Math.floor((seconds / estimated) * 100));
+        let currentPhase = '🚀 Allocating GPU node & analyzing prompt…';
 
-      setMsg('success: AI Media generated successfully!');
+        if (seconds >= 10 && seconds < 30) {
+          currentPhase = '🎬 Synthesizing 3D camera pan & stadium spotlight effects…';
+        } else if (seconds >= 30 && seconds < 50) {
+          currentPhase = '⚽ Rendering high-fps football gameplay & motion blur…';
+        } else if (seconds >= 50) {
+          currentPhase = '📦 Finalizing video stream & encoding MP4…';
+        }
+
+        setVideoProgress((prev) => ({
+          ...prev,
+          elapsed: seconds,
+          pct: Math.max(prev.pct, currentPct),
+          phase: currentPhase,
+        }));
+      }, 1000);
+    }
+
+    try {
+      if (isVideo) {
+        // 1. Submit task immediately
+        const submitRes = await fetch('/api/generate-reel', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt, aspectRatio, model }),
+        });
+
+        const submitData = await submitRes.json();
+        if (!submitRes.ok || !submitData.taskId) {
+          throw new Error(submitData.error || 'Failed to submit video generation task');
+        }
+
+        const taskId = submitData.taskId;
+        setVideoProgress((prev) => ({ ...prev, taskId }));
+
+        // 2. Poll every 3 seconds until completed
+        let finalUrl = '';
+        const maxPollTime = Date.now() + 180000;
+
+        while (Date.now() < maxPollTime) {
+          await new Promise((res) => setTimeout(res, 3500));
+          const pollRes = await fetch(`/api/generate-reel?taskId=${taskId}`);
+          const pollData = await pollRes.json();
+
+          if (pollData.status === 'SUCCEEDED' && pollData.videoUrl) {
+            finalUrl = pollData.videoUrl;
+            break;
+          } else if (pollData.status === 'FAILED') {
+            throw new Error(pollData.error || 'Alibaba Wan 2.1 video generation failed');
+          }
+        }
+
+        if (timerInterval) clearInterval(timerInterval);
+
+        if (!finalUrl) {
+          throw new Error('Video generation timed out. Please try again.');
+        }
+
+        setVideoProgress((prev) => ({
+          ...prev,
+          pct: 100,
+          phase: '✅ AI Video Synthesis Complete!',
+        }));
+
+        setVideoUrl(finalUrl);
+        setMsg('success: Alibaba Wan 2.1 AI Video generated successfully!');
+      } else {
+        // Image generation
+        const r = await fetch('/api/generate-media', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt, provider, aspectRatio }),
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || 'Generation failed');
+        setImageUrl(d.media?.url || d.url || '');
+        setMsg('success: AI Image generated successfully!');
+      }
     } catch (e: any) {
+      if (timerInterval) clearInterval(timerInterval);
+      setVideoProgress({ active: false, elapsed: 0, estimated: 60, pct: 0, phase: '' });
       setMsg('error: ' + e.message);
     } finally {
       setGenerating(false);
@@ -317,7 +414,7 @@ export default function Admin() {
                       disabled={generating || prompt.trim().length < 5}
                       style={{ marginTop: '8px' }}
                     >
-                      {generating ? 'SYNTHESIZING VIDEO…' : 'GENERATE AI VIDEO / MEDIA ↗'}
+                      {generating ? 'SYNTHESIZING MEDIA…' : 'GENERATE AI VIDEO / MEDIA ↗'}
                     </button>
                   </div>
 
@@ -349,6 +446,36 @@ export default function Admin() {
                     )}
                   </div>
                 </div>
+
+                {/* REAL-TIME VIDEO SYNTHESIS PROGRESS & COUNTDOWN */}
+                {videoProgress.active && (
+                  <div className="video-progress-card">
+                    <div className="video-progress-header">
+                      <div className="video-progress-title">
+                        <span className="video-live-dot" />
+                        <span>AI Video Synthesis in Progress</span>
+                      </div>
+                      <span className="video-countdown-badge">
+                        ⏱️ {String(Math.floor(videoProgress.elapsed / 60)).padStart(2, '0')}:
+                        {String(videoProgress.elapsed % 60).padStart(2, '0')} / ~
+                        {String(Math.floor(videoProgress.estimated / 60)).padStart(2, '0')}:
+                        {String(videoProgress.estimated % 60).padStart(2, '0')} (
+                        {Math.max(0, videoProgress.estimated - videoProgress.elapsed)}s remaining)
+                      </span>
+                    </div>
+
+                    <div className="video-bar-track">
+                      <div className="video-bar-fill" style={{ width: `${videoProgress.pct}%` }} />
+                    </div>
+
+                    <div className="video-status-meta">
+                      <span className="video-phase-text">{videoProgress.phase}</span>
+                      <strong style={{ color: 'var(--konami-yellow)', fontFamily: 'var(--font-mono)' }}>
+                        {videoProgress.pct}%
+                      </strong>
+                    </div>
+                  </div>
+                )}
 
                 {videoUrl && (
                   <div className="studio-video-box">

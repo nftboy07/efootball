@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-export const maxDuration = 600; // Allow sufficient time for AI video synthesis
+export const maxDuration = 60;
 
 const DEFAULT_API_KEY =
   process.env.DASHSCOPE_API_KEY ||
@@ -24,6 +24,58 @@ function getResolution(aspectRatio?: string): string {
   }
 }
 
+// 1. QUERY TASK STATUS (CLIENT POLLING)
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const taskId = searchParams.get('taskId');
+
+  if (!taskId) {
+    return NextResponse.json({ error: 'Missing taskId parameter' }, { status: 400 });
+  }
+
+  try {
+    const queryRes = await fetch(`${DEFAULT_HOST}/api/v1/tasks/${taskId}`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${DEFAULT_API_KEY}`,
+        'X-DashScope-WorkSpace': DEFAULT_WORKSPACE,
+      },
+    });
+
+    const queryData = await queryRes.json();
+    const status = queryData?.output?.task_status || 'UNKNOWN';
+
+    if (status === 'SUCCEEDED') {
+      const videoUrl = queryData?.output?.video_url;
+      return NextResponse.json({
+        status: 'SUCCEEDED',
+        videoUrl,
+        video: {
+          url: videoUrl,
+          contentType: 'video/mp4',
+        },
+      });
+    }
+
+    if (status === 'FAILED' || status === 'CANCELED') {
+      const errorMsg = queryData?.output?.message || queryData?.message || 'Video generation failed on Alibaba Model Studio';
+      return NextResponse.json({
+        status: 'FAILED',
+        error: errorMsg,
+      });
+    }
+
+    // PENDING or RUNNING
+    return NextResponse.json({
+      status: status || 'RUNNING',
+      taskId,
+    });
+  } catch (error: any) {
+    return NextResponse.json({ error: error?.message || 'Failed to query task status' }, { status: 502 });
+  }
+}
+
+// 2. SUBMIT VIDEO GENERATION TASK
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
   if (!body || typeof body.prompt !== 'string' || body.prompt.trim().length < 5) {
@@ -35,7 +87,6 @@ export async function POST(request: NextRequest) {
   const size = getResolution(body.aspectRatio || body.aspect_ratio);
 
   try {
-    // 1. Submit video generation task to Alibaba Model Studio / DashScope
     const createRes = await fetch(`${DEFAULT_HOST}/api/v1/services/aigc/video-generation/video-synthesis`, {
       method: 'POST',
       headers: {
@@ -62,54 +113,13 @@ export async function POST(request: NextRequest) {
     }
 
     const taskId = createData.output.task_id;
-
-    // 2. Poll the task until finished or timeout
-    const startTime = Date.now();
-    const maxWaitMs = 180000; // 3 minutes poll limit
-    let videoUrl = '';
-
-    while (Date.now() - startTime < maxWaitMs) {
-      await new Promise((resolve) => setTimeout(resolve, 4000));
-
-      const queryRes = await fetch(`${DEFAULT_HOST}/api/v1/tasks/${taskId}`, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${DEFAULT_API_KEY}`,
-          'X-DashScope-WorkSpace': DEFAULT_WORKSPACE,
-        },
-      });
-
-      const queryData = await queryRes.json();
-      const status = queryData?.output?.task_status;
-
-      if (status === 'SUCCEEDED') {
-        videoUrl = queryData.output.video_url;
-        break;
-      } else if (status === 'FAILED' || status === 'CANCELED') {
-        const failureReason = queryData?.output?.message || queryData?.message || 'Video generation task failed';
-        return NextResponse.json({ error: failureReason }, { status: 502 });
-      }
-      // Status is PENDING or RUNNING -> continue polling
-    }
-
-    if (!videoUrl) {
-      return NextResponse.json(
-        {
-          error: 'Video generation is still processing. You can check back with task ID: ' + taskId,
-          taskId,
-        },
-        { status: 202 }
-      );
-    }
+    const estimatedSeconds = model === 'wan2.1-t2v-plus' ? 90 : 60;
 
     return NextResponse.json({
-      video: {
-        url: videoUrl,
-        contentType: 'video/mp4',
-        model,
-        taskId,
-      },
-      url: videoUrl,
+      taskId,
+      status: 'PENDING',
+      model,
+      estimatedSeconds,
     });
   } catch (error: any) {
     return NextResponse.json(
@@ -118,3 +128,4 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+

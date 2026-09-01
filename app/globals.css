@@ -1402,3 +1402,102 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* 12. AI VIDEO SYNTHESIS PROGRESS & COUNTDOWN TIMER */
+.video-progress-card {
+  margin-top: 20px;
+  background: linear-gradient(135deg, rgba(3, 10, 56, 0.95), rgba(8, 23, 102, 0.95));
+  border: 2px solid var(--konami-yellow);
+  border-radius: 12px;
+  padding: 22px;
+  box-shadow: 0 0 30px var(--konami-yellow-glow);
+  animation: pulse-border 2s infinite alternate;
+}
+
+@keyframes pulse-border {
+  0% { box-shadow: 0 0 15px rgba(255, 255, 0, 0.3); }
+  100% { box-shadow: 0 0 35px rgba(255, 255, 0, 0.7); }
+}
+
+.video-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.video-progress-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: #ffffff;
+}
+
+.video-live-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #00ff66;
+  box-shadow: 0 0 10px #00ff66;
+  animation: blink 1s infinite alternate;
+}
+
+@keyframes blink {
+  0% { opacity: 0.3; transform: scale(0.8); }
+  100% { opacity: 1; transform: scale(1.2); }
+}
+
+.video-countdown-badge {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--konami-yellow);
+  background: rgba(0, 0, 0, 0.5);
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 0, 0.3);
+}
+
+.video-bar-track {
+  width: 100%;
+  height: 14px;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 7px;
+  overflow: hidden;
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  margin: 12px 0 10px;
+}
+
+.video-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #00f0ff, #ffff00, #ff007f);
+  background-size: 200% 100%;
+  border-radius: 7px;
+  transition: width 0.4s ease;
+  animation: shimmer 2s linear infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+.video-status-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: #b0c0ff;
+  font-family: var(--font-body);
+}
+
+.video-phase-text {
+  font-weight: 600;
+  color: #ffffff;
+}
