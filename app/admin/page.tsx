@@ -226,6 +226,81 @@ export default function Admin() {
     }
   }
 
+  const [queuedReels, setQueuedReels] = useState<any[]>([]);
+  const [queueLoading, setQueueLoading] = useState(false);
+
+  async function loadQueue() {
+    try {
+      const res = await fetch('/api/reels-queue');
+      const data = await res.json();
+      if (Array.isArray(data.queue)) {
+        setQueuedReels(data.queue);
+      }
+    } catch (e) {}
+  }
+
+  async function addToSchedule() {
+    if (!videoUrl) return;
+    try {
+      const res = await fetch('/api/reels-queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'ADD_BATCH',
+          items: [
+            {
+              videoUrl,
+              caption: copy || prompt,
+              playerTag: starPlayerName || 'eFootball Superstar',
+            },
+          ],
+          intervalMinutes: 45,
+        }),
+      });
+      const data = await res.json();
+      if (data.queue) setQueuedReels(data.queue);
+      setMsg('success: Added video to scheduled Instagram queue (spaced safely at 45m intervals)!');
+    } catch (e: any) {
+      setMsg('error: Failed to add to queue');
+    }
+  }
+
+  async function publishQueuedItem(id: string) {
+    setQueueLoading(true);
+    try {
+      const res = await fetch('/api/reels-queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'PUBLISH_ITEM',
+          reelId: id,
+          accessToken: igToken,
+          igUserId: igUserId,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to publish');
+      setMsg('success: ' + data.message);
+      loadQueue();
+    } catch (e: any) {
+      setMsg('error: ' + e.message);
+    } finally {
+      setQueueLoading(false);
+    }
+  }
+
+  async function deleteQueuedItem(id: string) {
+    try {
+      const res = await fetch('/api/reels-queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'DELETE_ITEM', reelId: id }),
+      });
+      const data = await res.json();
+      if (data.queue) setQueuedReels(data.queue);
+    } catch (e) {}
+  }
+
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [selected, setSelected] = useState('');
   const [msg, setMsg] = useState('');
@@ -746,12 +821,15 @@ export default function Admin() {
                   <div className="studio-video-box">
                     <video controls src={videoUrl} autoPlay loop />
                     <div style={{ padding: '20px', background: '#081766' }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
-                        <a className="matchday-button primary full" href={videoUrl} target="_blank" rel="noreferrer">
-                          ⬇️ DOWNLOAD MP4 VIDEO ↗
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '14px' }}>
+                        <a className="matchday-button primary full" href={videoUrl} target="_blank" rel="noreferrer" style={{ textAlign: 'center' }}>
+                          ⬇️ DOWNLOAD MP4 ↗
                         </a>
                         <button className="matchday-button secondary full" onClick={copyCaption}>
-                          {copyFeedback ? 'COPIED CAPTION! ✓' : '📋 COPY INSTAGRAM CAPTION'}
+                          {copyFeedback ? 'COPIED! ✓' : '📋 COPY CAPTION'}
+                        </button>
+                        <button className="matchday-button primary full" onClick={addToSchedule} style={{ background: '#00cc66', color: '#000', fontWeight: 900 }}>
+                          📅 ADD TO QUEUE ↗
                         </button>
                       </div>
 
@@ -785,6 +863,47 @@ export default function Admin() {
                         </div>
                         {igMessage && <p style={{ margin: '8px 0 0', fontSize: '13px', color: igMessage.startsWith('✅') ? '#00ff66' : 'var(--konami-yellow)', fontWeight: 700 }}>{igMessage}</p>}
                       </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* SCHEDULED REELS PUBLISHING QUEUE DECK */}
+                {queuedReels.length > 0 && (
+                  <div style={{ marginTop: '24px', background: 'rgba(3, 10, 56, 0.85)', border: '1px solid var(--konami-yellow)', borderRadius: '10px', padding: '18px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                      <span style={{ color: 'var(--konami-yellow)', fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '16px' }}>
+                        📅 SCHEDULED REELS PUBLISHING QUEUE ({queuedReels.length} Queued · 45m Spaced)
+                      </span>
+                      <span style={{ fontSize: '12px', color: '#88a0ff', fontFamily: 'var(--font-mono)' }}>
+                        Meta Daily Limit: {queuedReels.filter(r => r.status === 'PUBLISHED').length}/25 Published
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'grid', gap: '10px' }}>
+                      {queuedReels.map((item) => (
+                        <div key={item.id} style={{ background: 'rgba(0,0,0,0.4)', borderRadius: '6px', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid rgba(255,255,255,0.1)' }}>
+                          <div>
+                            <strong style={{ color: '#fff', fontSize: '14px' }}>⭐ {item.playerTag} Reel</strong>
+                            <span style={{ marginLeft: '12px', fontSize: '12px', color: '#aaa' }}>Release: {new Date(item.scheduledTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            <span style={{ marginLeft: '12px', fontSize: '11px', padding: '2px 8px', borderRadius: '10px', background: item.status === 'PUBLISHED' ? '#00cc66' : item.status === 'PUBLISHING' ? '#ffaa00' : '#081766', color: '#fff' }}>{item.status}</span>
+                          </div>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                              onClick={() => publishQueuedItem(item.id)}
+                              disabled={queueLoading || item.status === 'PUBLISHED'}
+                              style={{ background: 'var(--konami-yellow)', color: '#000', border: 'none', borderRadius: '4px', padding: '6px 12px', fontSize: '12px', fontWeight: 800, cursor: 'pointer' }}
+                            >
+                              {item.status === 'PUBLISHED' ? 'PUBLISHED ✓' : 'PUBLISH NOW 🚀'}
+                            </button>
+                            <button
+                              onClick={() => deleteQueuedItem(item.id)}
+                              style={{ background: 'rgba(255,0,0,0.2)', color: '#ff6666', border: '1px solid #ff4444', borderRadius: '4px', padding: '6px 10px', fontSize: '12px', cursor: 'pointer' }}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
