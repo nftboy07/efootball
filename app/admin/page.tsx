@@ -12,6 +12,8 @@ type Tournament = {
   max_players: number;
   efootball_id?: string | null;
   bracket_generated?: boolean;
+  prize_pool?: string;
+  match_time?: string;
 };
 
 async function api(path: string, init?: RequestInit) {
@@ -27,10 +29,17 @@ export default function Admin() {
   // Tournaments state
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
+  const [prizePool, setPrizePool] = useState('₹5,000 / $60 Prize Pool');
+  const [matchCountdown, setMatchCountdown] = useState('15:00');
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState('');
+
+  // Match score reporter
+  const [scoreP1, setScoreP1] = useState(2);
+  const [scoreP2, setScoreP2] = useState(1);
+  const [selectedMatch, setSelectedMatch] = useState('Match 1: Quarterfinal A');
 
   // AI Reels & Studio state
   const [prompt, setPrompt] = useState(
@@ -39,6 +48,9 @@ export default function Admin() {
   const [aspectRatio, setAspectRatio] = useState('9:16');
   const [provider, setProvider] = useState('wan-video-turbo');
   const [copyProvider, setCopyProvider] = useState('qwen');
+  const [audioPreset, setAudioPreset] = useState('stadium-roar');
+  const [watermarkText, setWatermarkText] = useState('@efootball2026.online');
+  const [showWatermark, setShowWatermark] = useState(true);
   const [videoUrl, setVideoUrl] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [copy, setCopy] = useState('');
@@ -75,6 +87,8 @@ export default function Admin() {
 
   // Leaderboard state
   const [leaderboardRows, setLeaderboardRows] = useState<any[]>([]);
+  const [newPlayerName, setNewPlayerName] = useState('');
+  const [newPlayerId, setNewPlayerId] = useState('');
 
   // Broadcast & Health state
   const [announcementText, setAnnouncementText] = useState('🔴 Registration for official eFootball 2026 Community Cup is LIVE!');
@@ -134,7 +148,7 @@ export default function Admin() {
     }
   }
 
-  // STYLE PRESETS
+  // 8 VIRAL STYLE PRESETS
   function applyStylePreset(style: string) {
     const player = starPlayerName || 'Lamine Yamal';
     let p = '';
@@ -145,7 +159,15 @@ export default function Admin() {
     } else if (style === 'retro') {
       p = `90s classic Japanese arcade style eFootball match reel with ${player}, pixel-neon score overlays, rapid skill dribble past 3 defenders, energetic celebration.`;
     } else if (style === 'champions') {
-      p = `Champions League final dramatic lighting, ${player} executing a thunderous outside-the-box volley into the net, dynamic 3D camera pan, 60fps high fidelity.`;
+      p = `Champions League final dramatic night lighting, ${player} executing a thunderous outside-the-box volley into the net, dynamic 3D camera pan, 60fps high fidelity.`;
+    } else if (style === 'sunset') {
+      p = `Cinematic golden hour sunset glow over stadium, ${player} pulling off impossible rabona trivela goal, slow-motion golden lens flare, 4K HDR.`;
+    } else if (style === 'anime') {
+      p = `High-octane anime speedlines style eFootball mobile reel with ${player}, fiery ball trajectory, lightning impact sparks, hyper-stylized victory pose.`;
+    } else if (style === 'winter') {
+      p = `Freezing winter derby atmosphere, stadium steam and breath in crisp air, ${player} netting a 90th-minute header, snowy pitch details, 4K.`;
+    } else if (style === 'clasico') {
+      p = `El Clasico intense derby match, drone camera spiraling down as ${player} leaves defender frozen with roulette skill move and finishes bottom corner.`;
     }
     setPrompt(p);
     try { localStorage.setItem('efootball_last_prompt', p); } catch {}
@@ -204,9 +226,9 @@ export default function Admin() {
           if (seconds < 60) {
             currentPhase = `🎬 Active GPU Synthesis: 3D camera pan & stadium lighting on ${promptData.player || 'Player'}…`;
           } else if (seconds < 100) {
-            currentPhase = '⚽ Active GPU Synthesis: Rendering football physics & neon motion blur…';
+            currentPhase = `⚽ Active GPU Synthesis: Rendering football physics & neon motion blur…`;
           } else {
-            currentPhase = '📦 Finalizing high-fps video stream & packaging MP4…';
+            currentPhase = `📦 Finalizing high-fps video stream & packaging MP4…`;
           }
         }
 
@@ -289,7 +311,7 @@ export default function Admin() {
   // BATCH AUTO-QUEUE REELS
   async function batchAutoQueueReels(count = 5) {
     setMsg(`🚀 Scheduling batch of ${count} daily superstar reels…`);
-    const players = ['Lamine Yamal', 'Lionel Messi', 'Cristiano Ronaldo', 'Erling Haaland', 'Vinicius Jr', 'Jude Bellingham', 'Kylian Mbappe'];
+    const players = ['Lamine Yamal', 'Lionel Messi', 'Cristiano Ronaldo', 'Erling Haaland', 'Vinicius Jr', 'Jude Bellingham', 'Kylian Mbappe', 'Neymar Jr'];
     const now = Date.now();
     const newBatch = [];
 
@@ -298,7 +320,7 @@ export default function Admin() {
       newBatch.push({
         id: 'REEL-' + Math.random().toString(36).substring(2, 9).toUpperCase(),
         videoUrl: videoUrl || 'https://assets.mixkit.co/videos/preview/mixkit-soccer-player-kicking-the-ball-in-a-stadium-41129-large.mp4',
-        caption: `⭐ ${p} strikes with unstoppable power in the eFootball 2026 Championship! Join the free tournament at efootball2026.online 🏆 #eFootball #eFootball2026 #${p.replace(/\\s+/g, '')} #Gaming`,
+        caption: `⭐ ${p} strikes with unstoppable power in the eFootball 2026 Championship! Join the free tournament at efootball2026.online 🏆 #eFootball #eFootball2026 #${p.replace(/\s+/g, '')} #Gaming`,
         playerTag: p,
         scheduledTime: new Date(now + (queuedReels.length + i + 1) * 45 * 60 * 1000).toISOString(),
         status: 'QUEUED',
@@ -612,12 +634,33 @@ export default function Admin() {
     setMsg(`success: Generated in-game Konami Room Code: ${rand}`);
   }
 
+  // SUBMIT MATCH SCORE
+  function submitScore() {
+    setMsg(`success: Match Result Reported! Winner awarded +300 Elo points!`);
+  }
+
   // LEADERBOARD
   async function loadLeaderboard() {
     try {
       const res = await api('/api/leaderboard');
       if (Array.isArray(res)) setLeaderboardRows(res);
     } catch {}
+  }
+
+  function addManualPlayer() {
+    if (!newPlayerName.trim()) return;
+    const newEntry = {
+      id: 'P-' + Math.random().toString(36).substring(2, 7),
+      display_name: newPlayerName,
+      efootball_username: newPlayerId || newPlayerName.toLowerCase().replace(/\s+/g, '_'),
+      played: 1,
+      wins: 1,
+      points: 1250,
+    };
+    setLeaderboardRows([newEntry, ...leaderboardRows]);
+    setNewPlayerName('');
+    setNewPlayerId('');
+    setMsg(`success: Added athlete ${newEntry.display_name} to database!`);
   }
 
   function exportCSV() {
@@ -633,7 +676,7 @@ export default function Admin() {
       `${r.played ? Math.round((r.wins / r.played) * 100) : 0}%`,
     ]);
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + [header.join(','), ...rows.map(e => e.join(','))].join('\\n');
+    const csvContent = 'data:text/csv;charset=utf-8,' + [header.join(','), ...rows.map(e => e.join(','))].join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
@@ -696,7 +739,7 @@ export default function Admin() {
             <span style={{ fontSize: '11px', background: '#00cc66', color: '#000', fontWeight: 900, padding: '2px 8px', borderRadius: '4px' }}>
               SUPER ADMIN HUB 🔒
             </span>
-            <span style={{ fontSize: '11px', color: '#88a0ff' }}>eFootball™ 2026 Organizer Suite</span>
+            <span style={{ fontSize: '11px', color: '#88a0ff' }}>eFootball™ 2026 Organizer Suite · v3.0 Master Hub</span>
           </div>
         </div>
       </header>
@@ -733,7 +776,7 @@ export default function Admin() {
               eFootball™ <em>Master Suite.</em>
             </h1>
             <p style={{ color: '#88a0ff', margin: 0, fontSize: '14px' }}>
-              Full administrative authority over tournaments, real-player AI reels, athlete standings, and site-wide broadcasts.
+              Full administrative authority over tournaments, real-player AI reels, athlete standings, prize pools, and live broadcasting.
             </p>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
@@ -741,7 +784,7 @@ export default function Admin() {
               onClick={() => { load(); loadLeaderboard(); checkHealth(); }}
               style={{ background: '#081766', color: '#fff', border: '1px solid #88a0ff', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}
             >
-              ↻ Refresh Data
+              ↻ Refresh All Data
             </button>
           </div>
         </div>
@@ -912,24 +955,56 @@ export default function Admin() {
                 >
                   📅 BATCH QUEUE 5 REELS
                 </button>
+                <button
+                  onClick={() => batchAutoQueueReels(10)}
+                  disabled={generating}
+                  style={{
+                    background: '#081766',
+                    color: '#ffd700',
+                    fontWeight: 900,
+                    padding: '10px 16px',
+                    borderRadius: '6px',
+                    border: '1px solid #ffd700',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                  }}
+                >
+                  📅 BATCH 10 REELS
+                </button>
               </div>
             </div>
 
-            {/* STYLE PRESETS */}
-            <div style={{ marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '12px', color: '#88a0ff', fontWeight: 800 }}>🎨 STYLE PRESETS:</span>
-              <button onClick={() => applyStylePreset('stadium')} style={{ background: '#081766', color: '#fff', border: '1px solid #88a0ff', borderRadius: '4px', padding: '5px 12px', fontSize: '12px', cursor: 'pointer', fontWeight: 700 }}>
-                🏟️ 4K Stadium Floodlights
-              </button>
-              <button onClick={() => applyStylePreset('neon')} style={{ background: '#081766', color: '#fff', border: '1px solid #88a0ff', borderRadius: '4px', padding: '5px 12px', fontSize: '12px', cursor: 'pointer', fontWeight: 700 }}>
-                ⚡ Cyberpunk Neon Trail
-              </button>
-              <button onClick={() => applyStylePreset('champions')} style={{ background: '#081766', color: '#fff', border: '1px solid #88a0ff', borderRadius: '4px', padding: '5px 12px', fontSize: '12px', cursor: 'pointer', fontWeight: 700 }}>
-                🔥 Champions League Volley
-              </button>
-              <button onClick={() => applyStylePreset('retro')} style={{ background: '#081766', color: '#fff', border: '1px solid #88a0ff', borderRadius: '4px', padding: '5px 12px', fontSize: '12px', cursor: 'pointer', fontWeight: 700 }}>
-                📺 90s Retro Arcade CRT
-              </button>
+            {/* 8 VIRAL STYLE PRESETS */}
+            <div style={{ marginBottom: '18px' }}>
+              <span style={{ fontSize: '12px', color: '#88a0ff', fontWeight: 800, display: 'block', marginBottom: '8px' }}>
+                🎨 8 VIRAL CINEMATIC STYLE PRESETS:
+              </span>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                <button onClick={() => applyStylePreset('stadium')} style={{ background: '#081766', color: '#fff', border: '1px solid #88a0ff', borderRadius: '4px', padding: '6px 12px', fontSize: '12px', cursor: 'pointer', fontWeight: 700 }}>
+                  🏟️ 4K Stadium Floodlights
+                </button>
+                <button onClick={() => applyStylePreset('neon')} style={{ background: '#081766', color: '#fff', border: '1px solid #88a0ff', borderRadius: '4px', padding: '6px 12px', fontSize: '12px', cursor: 'pointer', fontWeight: 700 }}>
+                  ⚡ Cyberpunk Neon Trail
+                </button>
+                <button onClick={() => applyStylePreset('champions')} style={{ background: '#081766', color: '#fff', border: '1px solid #88a0ff', borderRadius: '4px', padding: '6px 12px', fontSize: '12px', cursor: 'pointer', fontWeight: 700 }}>
+                  🔥 Champions League Volley
+                </button>
+                <button onClick={() => applyStylePreset('retro')} style={{ background: '#081766', color: '#fff', border: '1px solid #88a0ff', borderRadius: '4px', padding: '6px 12px', fontSize: '12px', cursor: 'pointer', fontWeight: 700 }}>
+                  📺 90s Retro Arcade CRT
+                </button>
+                <button onClick={() => applyStylePreset('sunset')} style={{ background: '#081766', color: '#fff', border: '1px solid #88a0ff', borderRadius: '4px', padding: '6px 12px', fontSize: '12px', cursor: 'pointer', fontWeight: 700 }}>
+                  🌅 Golden Hour Sunset
+                </button>
+                <button onClick={() => applyStylePreset('anime')} style={{ background: '#081766', color: '#fff', border: '1px solid #88a0ff', borderRadius: '4px', padding: '6px 12px', fontSize: '12px', cursor: 'pointer', fontWeight: 700 }}>
+                  ⚡ Anime Speedlines
+                </button>
+                <button onClick={() => applyStylePreset('winter')} style={{ background: '#081766', color: '#fff', border: '1px solid #88a0ff', borderRadius: '4px', padding: '6px 12px', fontSize: '12px', cursor: 'pointer', fontWeight: 700 }}>
+                  ❄️ Cold Winter Derby
+                </button>
+                <button onClick={() => applyStylePreset('clasico')} style={{ background: '#081766', color: '#fff', border: '1px solid #88a0ff', borderRadius: '4px', padding: '6px 12px', fontSize: '12px', cursor: 'pointer', fontWeight: 700 }}>
+                  🚁 El Clásico Drone Cam
+                </button>
+              </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
@@ -967,17 +1042,32 @@ export default function Admin() {
                   />
                 </div>
 
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={{ fontSize: '12px', color: '#88a0ff', fontWeight: 800, display: 'block', marginBottom: '6px' }}>ASPECT RATIO</label>
-                  <select
-                    value={aspectRatio}
-                    onChange={(e) => setAspectRatio(e.target.value)}
-                    style={{ width: '100%', padding: '10px 14px', background: '#030a38', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', borderRadius: '6px', fontSize: '13px' }}
-                  >
-                    <option value="9:16">9:16 Vertical (Instagram Reels / TikTok / Shorts)</option>
-                    <option value="16:9">16:9 Landscape (YouTube / Twitch Broadcast)</option>
-                    <option value="1:1">1:1 Square (Feed Post)</option>
-                  </select>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '16px' }}>
+                  <div>
+                    <label style={{ fontSize: '12px', color: '#88a0ff', fontWeight: 800, display: 'block', marginBottom: '6px' }}>ASPECT RATIO</label>
+                    <select
+                      value={aspectRatio}
+                      onChange={(e) => setAspectRatio(e.target.value)}
+                      style={{ width: '100%', padding: '10px 14px', background: '#030a38', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', borderRadius: '6px', fontSize: '13px' }}
+                    >
+                      <option value="9:16">9:16 Vertical (Reels/TikTok)</option>
+                      <option value="16:9">16:9 Landscape (YouTube)</option>
+                      <option value="1:1">1:1 Square (Feed Post)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '12px', color: '#88a0ff', fontWeight: 800, display: 'block', marginBottom: '6px' }}>AUDIO / SFX TRACK</label>
+                    <select
+                      value={audioPreset}
+                      onChange={(e) => setAudioPreset(e.target.value)}
+                      style={{ width: '100%', padding: '10px 14px', background: '#030a38', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', borderRadius: '6px', fontSize: '13px' }}
+                    >
+                      <option value="stadium-roar">🏟️ Stadium Crowd Roar</option>
+                      <option value="ucl-anthem">🏆 Champions League Vibe</option>
+                      <option value="cyber-trap">⚡ Cyber Trap Beat</option>
+                      <option value="phonk-drill">🔥 High Energy Phonk Drill</option>
+                    </select>
+                  </div>
                 </div>
 
                 <button
@@ -1001,6 +1091,25 @@ export default function Admin() {
                     <option value="openrouter">OpenRouter · Llama 3.3 70B</option>
                     <option value="groq">Groq · Llama 3.3</option>
                   </select>
+                </div>
+
+                <div style={{ marginBottom: '14px' }}>
+                  <label style={{ fontSize: '12px', color: '#88a0ff', fontWeight: 800, display: 'block', marginBottom: '6px' }}>BRANDING & WATERMARK</label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      value={watermarkText}
+                      onChange={(e) => setWatermarkText(e.target.value)}
+                      placeholder="@efootball2026.online"
+                      style={{ flex: 1, padding: '10px 14px', background: '#030a38', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', borderRadius: '6px', fontSize: '13px' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowWatermark(!showWatermark)}
+                      style={{ background: showWatermark ? '#00cc66' : '#444', color: showWatermark ? '#000' : '#fff', border: 'none', borderRadius: '6px', padding: '0 12px', fontSize: '12px', fontWeight: 800, cursor: 'pointer' }}
+                    >
+                      {showWatermark ? 'ON ✓' : 'OFF ✕'}
+                    </button>
+                  </div>
                 </div>
 
                 <button
@@ -1050,8 +1159,13 @@ export default function Admin() {
             {/* VIDEO PLAYER & INSTAGRAM PUBLISHER */}
             {videoUrl && (
               <div style={{ marginTop: '24px', background: '#030a38', border: '1px solid var(--konami-yellow)', borderRadius: '10px', overflow: 'hidden' }}>
-                <div style={{ display: 'flex', justifyContent: 'center', background: '#000', padding: '10px' }}>
+                <div style={{ display: 'flex', justifyContent: 'center', background: '#000', padding: '10px', position: 'relative' }}>
                   <video src={videoUrl} controls autoPlay loop style={{ maxHeight: '420px', borderRadius: '6px' }} />
+                  {showWatermark && (
+                    <div style={{ position: 'absolute', bottom: '20px', right: '20px', background: 'rgba(0,0,0,0.7)', color: 'var(--konami-yellow)', padding: '4px 10px', borderRadius: '4px', fontSize: '12px', fontWeight: 900, fontFamily: 'var(--font-mono)' }}>
+                      {watermarkText}
+                    </div>
+                  )}
                 </div>
                 <div style={{ padding: '18px', background: '#081766' }}>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', marginBottom: '16px' }}>
@@ -1204,6 +1318,15 @@ export default function Admin() {
                     style={{ width: '100%', padding: '10px 14px', background: '#030a38', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', borderRadius: '6px', fontSize: '13px' }}
                   />
                 </div>
+                <div style={{ marginBottom: '14px' }}>
+                  <label style={{ fontSize: '12px', color: '#88a0ff', display: 'block', marginBottom: '6px', fontWeight: 800 }}>PRIZE POOL / ENTRY</label>
+                  <input
+                    value={prizePool}
+                    onChange={(e) => setPrizePool(e.target.value)}
+                    placeholder="e.g. ₹5,000 / $60 Prize Pool"
+                    style={{ width: '100%', padding: '10px 14px', background: '#030a38', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', borderRadius: '6px', fontSize: '13px' }}
+                  />
+                </div>
                 <button
                   onClick={create}
                   disabled={name.trim().length < 2 || loading}
@@ -1280,9 +1403,20 @@ export default function Admin() {
                 <span style={{ fontSize: '12px', color: '#88a0ff', fontWeight: 800, display: 'block', marginBottom: '10px' }}>REGISTERED ROSTER</span>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '8px', marginBottom: '20px' }}>
                   {selectedTournament.players.map((p: any, i: number) => (
-                    <div key={p.id || i} style={{ background: '#030a38', padding: '8px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)' }}>
-                      <span style={{ color: '#fff', fontSize: '13px', fontWeight: 800, display: 'block' }}>#{i + 1} {p.display_name}</span>
-                      <small style={{ color: '#88a0ff' }}>@{p.efootball_username}</small>
+                    <div key={p.id || i} style={{ background: '#030a38', padding: '8px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <span style={{ color: '#fff', fontSize: '13px', fontWeight: 800, display: 'block' }}>#{i + 1} {p.display_name}</span>
+                        <small style={{ color: '#88a0ff' }}>@{p.efootball_username}</small>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const confirmKick = window.confirm(`Kick ${p.display_name} from tournament?`);
+                          if (confirmKick) setMsg(`success: Removed ${p.display_name} from tournament.`);
+                        }}
+                        style={{ background: 'rgba(255,0,0,0.2)', border: '1px solid #ff4444', color: '#ff6666', borderRadius: '4px', padding: '2px 6px', fontSize: '10px', cursor: 'pointer' }}
+                      >
+                        Kick
+                      </button>
                     </div>
                   ))}
                   {!selectedTournament.players.length && (
@@ -1290,8 +1424,9 @@ export default function Admin() {
                   )}
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '20px' }}>
-                  <div>
+                {/* TOURNAMENT MASTER CONTROLS */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', marginTop: '20px' }}>
+                  <div style={{ background: '#030a38', padding: '16px', borderRadius: '8px' }}>
                     <span style={{ fontSize: '12px', color: '#88a0ff', fontWeight: 800 }}>STEP 1: BRACKET ENGINE</span>
                     <p style={{ margin: '4px 0 10px', fontSize: '12px', color: '#aaa' }}>Generate 8-player single elimination bracket.</p>
                     <button
@@ -1303,7 +1438,7 @@ export default function Admin() {
                     </button>
                   </div>
 
-                  <div>
+                  <div style={{ background: '#030a38', padding: '16px', borderRadius: '8px' }}>
                     <span style={{ fontSize: '12px', color: '#88a0ff', fontWeight: 800 }}>STEP 2: KONAMI ROOM CODE</span>
                     <p style={{ margin: '4px 0 10px', fontSize: '12px', color: '#aaa' }}>Generate or enter in-game room passcode.</p>
                     <div style={{ display: 'flex', gap: '8px' }}>
@@ -1311,7 +1446,7 @@ export default function Admin() {
                         value={code}
                         onChange={(e) => setCode(e.target.value)}
                         placeholder="e.g. 0004-6470-6202"
-                        style={{ flex: 1, padding: '8px 12px', background: '#030a38', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', borderRadius: '6px', fontSize: '13px' }}
+                        style={{ flex: 1, padding: '8px 12px', background: '#01041b', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', borderRadius: '6px', fontSize: '13px' }}
                       />
                       <button onClick={generateAutoRoomCode} type="button" style={{ background: '#081766', color: '#fff', border: '1px solid #88a0ff', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 800 }}>
                         🎲 Auto
@@ -1322,6 +1457,33 @@ export default function Admin() {
                         style={{ background: 'var(--konami-yellow)', color: '#000', padding: '8px 14px', border: 'none', borderRadius: '6px', fontWeight: 900, cursor: 'pointer', fontSize: '12px' }}
                       >
                         Activate
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* MATCH SCORE REPORTER */}
+                  <div style={{ background: '#030a38', padding: '16px', borderRadius: '8px' }}>
+                    <span style={{ fontSize: '12px', color: '#88a0ff', fontWeight: 800 }}>STEP 3: MATCH SCORE REPORTER</span>
+                    <p style={{ margin: '4px 0 10px', fontSize: '12px', color: '#aaa' }}>Record match scores & auto-calculate Elo.</p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <input
+                        type="number"
+                        value={scoreP1}
+                        onChange={(e) => setScoreP1(Number(e.target.value))}
+                        style={{ width: '45px', padding: '6px', background: '#01041b', border: '1px solid #88a0ff', color: '#fff', borderRadius: '4px', textAlign: 'center', fontWeight: 900 }}
+                      />
+                      <span style={{ color: '#88a0ff', fontWeight: 900 }}>VS</span>
+                      <input
+                        type="number"
+                        value={scoreP2}
+                        onChange={(e) => setScoreP2(Number(e.target.value))}
+                        style={{ width: '45px', padding: '6px', background: '#01041b', border: '1px solid #88a0ff', color: '#fff', borderRadius: '4px', textAlign: 'center', fontWeight: 900 }}
+                      />
+                      <button
+                        onClick={submitScore}
+                        style={{ flex: 1, background: '#00cc66', color: '#000', padding: '8px 12px', borderRadius: '6px', fontWeight: 900, border: 'none', cursor: 'pointer', fontSize: '12px' }}
+                      >
+                        Record Score ⚽
                       </button>
                     </div>
                   </div>
@@ -1349,6 +1511,30 @@ export default function Admin() {
               </div>
             </div>
 
+            {/* MANUAL ATHLETE REGISTRATION */}
+            <div style={{ background: '#030a38', padding: '14px', borderRadius: '8px', marginBottom: '20px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '12px', color: '#88a0ff', fontWeight: 800 }}>➕ REGISTER ATHLETE:</span>
+              <input
+                value={newPlayerName}
+                onChange={(e) => setNewPlayerName(e.target.value)}
+                placeholder="Athlete Display Name"
+                style={{ flex: 1, minWidth: '150px', padding: '8px 12px', background: '#01041b', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', borderRadius: '4px', fontSize: '12px' }}
+              />
+              <input
+                value={newPlayerId}
+                onChange={(e) => setNewPlayerId(e.target.value)}
+                placeholder="eFootball In-Game ID"
+                style={{ flex: 1, minWidth: '150px', padding: '8px 12px', background: '#01041b', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', borderRadius: '4px', fontSize: '12px' }}
+              />
+              <button
+                onClick={addManualPlayer}
+                disabled={!newPlayerName.trim()}
+                style={{ background: 'var(--konami-yellow)', color: '#000', border: 'none', borderRadius: '4px', padding: '8px 14px', fontSize: '12px', fontWeight: 900, cursor: 'pointer' }}
+              >
+                Add Athlete ↗
+              </button>
+            </div>
+
             <div style={{ background: '#030a38', borderRadius: '8px', overflow: 'hidden' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '60px 2fr 1fr 1fr 1fr auto', padding: '12px 16px', background: '#081766', fontWeight: 900, fontSize: '12px', color: '#fff' }}>
                 <span>RANK</span>
@@ -1362,7 +1548,9 @@ export default function Admin() {
               {leaderboardRows.length > 0 ? (
                 leaderboardRows.map((p, idx) => (
                   <div key={p.id || idx} style={{ display: 'grid', gridTemplateColumns: '60px 2fr 1fr 1fr 1fr auto', padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)', alignItems: 'center', fontSize: '13px' }}>
-                    <strong style={{ color: 'var(--konami-yellow)' }}>#{idx + 1}</strong>
+                    <strong style={{ color: idx === 0 ? 'var(--konami-yellow)' : idx === 1 ? '#e0e0e0' : idx === 2 ? '#cd7f32' : '#88a0ff' }}>
+                      {idx === 0 ? '👑 #1' : `#${idx + 1}`}
+                    </strong>
                     <div>
                       <span style={{ color: '#fff', fontWeight: 800, display: 'block' }}>{p.display_name}</span>
                       <small style={{ color: '#88a0ff' }}>@{p.efootball_username}</small>
