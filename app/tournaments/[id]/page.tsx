@@ -26,7 +26,16 @@ export default function Tournament() {
   const [name, setName] = useState('');
   const [ef, setEf] = useState('');
   const [msg, setMsg] = useState('');
+  const [copied, setCopied] = useState(false);
   const [matches, setMatches] = useState<any[]>([]);
+
+  // Match result submission state
+  const [selectedMatch, setSelectedMatch] = useState<any>(null);
+  const [scoreA, setScoreA] = useState('');
+  const [scoreB, setScoreB] = useState('');
+  const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [resultMsg, setResultMsg] = useState('');
 
   const load = useCallback(() => {
     if (!id) return;
@@ -52,6 +61,13 @@ export default function Tournament() {
     load();
   }, [load]);
 
+  function copyRoomCode(code: string) {
+    if (!navigator?.clipboard) return;
+    navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
   async function join() {
     setMsg('');
     try {
@@ -63,12 +79,65 @@ export default function Tournament() {
       if (d?.player?.token) {
         localStorage.setItem('player_token', d.player.token);
       }
-      setMsg('success: Registration confirmed. Keep your player token private.');
+      setMsg('success: Registration confirmed! Keep your player token in localStorage.');
       setName('');
       setEf('');
       load();
     } catch (e: any) {
       setMsg('error: ' + (e.message || 'Registration failed'));
+    }
+  }
+
+  async function submitMatchResult() {
+    if (!selectedMatch) return;
+    setResultMsg('');
+    setUploading(true);
+
+    try {
+      const token = localStorage.getItem('player_token');
+      if (!token) {
+        throw new Error('Please register or provide your player token to submit match scores.');
+      }
+
+      let evidenceUrl: string | undefined = undefined;
+
+      // If user uploaded a screenshot, send to Cloudinary /api/upload
+      if (evidenceFile) {
+        const formData = new FormData();
+        formData.append('file', evidenceFile);
+        const upRes = await fetch(API + '/api/upload', {
+          method: 'POST',
+          headers: { 'X-Player-Token': token },
+          body: formData,
+        });
+        const upData = await upRes.json();
+        if (!upRes.ok) throw new Error(upData.detail || 'Screenshot upload failed');
+        evidenceUrl = upData.url;
+      }
+
+      await api(`/api/matches/${selectedMatch.id}/result`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Player-Token': token,
+        },
+        body: JSON.stringify({
+          score_a: parseInt(scoreA, 10),
+          score_b: parseInt(scoreB, 10),
+          evidence_url: evidenceUrl,
+        }),
+      });
+
+      setResultMsg('success: Score submitted! Awaiting organizer verification.');
+      setSelectedMatch(null);
+      setScoreA('');
+      setScoreB('');
+      setEvidenceFile(null);
+      load();
+    } catch (e: any) {
+      setResultMsg('error: ' + (e.message || 'Score submission failed'));
+    } finally {
+      setUploading(false);
     }
   }
 
@@ -130,6 +199,7 @@ export default function Tournament() {
 
   return (
     <div className="matchday-shell">
+      {/* HEADER */}
       <header className="matchday-nav">
         <a className="brand-lockup" href="/">
           <span className="brand-mark">eF</span>
@@ -144,6 +214,7 @@ export default function Tournament() {
       </header>
 
       <main>
+        {/* HERO */}
         <section className="tournament-hero">
           <div>
             <span className="section-index">COMMUNITY CUP / {t.id}</span>
@@ -152,7 +223,7 @@ export default function Tournament() {
               <br />
               <em>Matchday.</em>
             </h1>
-            <p>{playerCount}/8 registered players · Free entry · Follow the route to the final.</p>
+            <p>{playerCount}/8 registered players · Free entry · Single elimination bracket.</p>
           </div>
           <div className="tournament-score">
             <span>PLAYER SLOTS</span>
@@ -163,10 +234,11 @@ export default function Tournament() {
             <div className="progress-track">
               <i style={{ width: `${progressPct}%` }} />
             </div>
-            <b>{t.efootball_id ? 'ROOM ACTIVE' : 'ROOM PENDING'}</b>
+            <b>{t.efootball_id ? 'KONAMI ROOM LIVE' : 'ROOM PENDING GENERATION'}</b>
           </div>
         </section>
 
+        {/* CONTENT */}
         <section className="section tournament-content">
           <div className="route-track tournament-route">
             {stages.map((stage, index) => (
@@ -179,15 +251,27 @@ export default function Tournament() {
             ))}
           </div>
 
+          {/* KONAMI CUSTOM ROOM CODE */}
           {t.efootball_id && (
             <section className="code-panel">
-              <span className="section-index">KONAMI CUSTOM ROOM</span>
+              <span className="section-index">KONAMI CUSTOM ROOM CODE</span>
               <strong>{t.efootball_id}</strong>
-              <p>Open eFootball → Custom Tournament → Join Tournament and enter this code.</p>
+              <p>
+                Open eFootball → Custom Tournament → Join Room and enter this code.{' '}
+                <button
+                  className="text-link"
+                  onClick={() => copyRoomCode(t.efootball_id)}
+                  style={{ marginLeft: '10px', cursor: 'pointer', background: 'none', border: 'none' }}
+                >
+                  {copied ? 'COPIED!' : 'COPY CODE ↗'}
+                </button>
+              </p>
             </section>
           )}
 
+          {/* COLUMNS */}
           <div className="tournament-columns">
+            {/* REGISTERED ROSTER */}
             <section>
               <div className="section-heading compact">
                 <div>
@@ -198,7 +282,7 @@ export default function Tournament() {
                     <em>in the cup.</em>
                   </h2>
                 </div>
-                <p>Website registrations are counted here. The KONAMI lobby itself must be checked in-game.</p>
+                <p>Website registrations are locked into the official draw.</p>
               </div>
               <div className="roster">
                 {t.players?.map((p: any, i: number) => (
@@ -212,6 +296,7 @@ export default function Tournament() {
               </div>
             </section>
 
+            {/* JOIN PANEL */}
             <section className="join-panel">
               <span className="section-index">RESERVE A SLOT</span>
               <h2>
@@ -220,7 +305,7 @@ export default function Tournament() {
                 <em>matchday.</em>
               </h2>
               {playerCount >= maxPlayers ? (
-                <div className="status-note">This cup is full. Watch the main page for the next opening.</div>
+                <div className="status-note">This cup is full! Watch the bracket progress below.</div>
               ) : (
                 <form
                   onSubmit={(e) => {
@@ -235,39 +320,50 @@ export default function Tournament() {
                       autoComplete="name"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      placeholder="Your name"
+                      placeholder="Your gamer tag"
                       required
                     />
                   </div>
                   <div className="field">
-                    <label htmlFor="efootball-name">eFootball username</label>
+                    <label htmlFor="efootball-name">eFootball in-game username</label>
                     <input
                       id="efootball-name"
                       spellCheck="false"
                       value={ef}
                       onChange={(e) => setEf(e.target.value)}
-                      placeholder="Your eFootball name"
+                      placeholder="Your Konami username"
                       required
                     />
                   </div>
                   <button className="matchday-button primary full" type="submit">
-                    Reserve slot <span>↗</span>
+                    Reserve Slot <span>↗</span>
                   </button>
                 </form>
               )}
               {msg && (
-                <p className={msg.startsWith('success') ? 'success' : 'error'} role="status" style={{ marginTop: '1rem' }}>
+                <p
+                  className={msg.startsWith('success') ? 'success' : 'error'}
+                  role="status"
+                  style={{ marginTop: '1rem', color: msg.startsWith('success') ? 'var(--ef-volt)' : 'var(--ef-red)' }}
+                >
                   {msg}
                 </p>
               )}
             </section>
           </div>
 
+          {/* LIVE BRACKET */}
           <section className="matches-section">
-            <span className="section-index">LIVE BRACKET</span>
-            <h2>
-              Match <em>route.</em>
-            </h2>
+            <div className="section-heading compact">
+              <div>
+                <span className="section-index">LIVE BRACKET</span>
+                <h2>
+                  Match <em>route.</em>
+                </h2>
+              </div>
+              <p>Click on any ready match to submit verified scores and screenshot proof.</p>
+            </div>
+
             <div className="match-list">
               {matches?.map((m: any) => (
                 <div className="match-row" key={m.id}>
@@ -278,17 +374,104 @@ export default function Tournament() {
                   <b>{m.score_a ?? '—'}</b>
                   <strong>{m.player_b || 'TBD'}</strong>
                   <b>{m.score_b ?? '—'}</b>
-                  <small>{m.status}</small>
+                  <div>
+                    {m.status === 'READY' ? (
+                      <button
+                        className="matchday-button primary"
+                        style={{ minHeight: '36px', padding: '6px 14px', fontSize: '12px' }}
+                        onClick={() => setSelectedMatch(m)}
+                      >
+                        Submit Score
+                      </button>
+                    ) : (
+                      <small>{m.status}</small>
+                    )}
+                  </div>
                 </div>
               ))}
               {!matches?.length && (
                 <div className="ranking-empty">The bracket appears after all eight slots are filled.</div>
               )}
             </div>
+
+            {/* RESULT SUBMISSION MODAL / FORM */}
+            {selectedMatch && (
+              <div
+                style={{
+                  marginTop: '2rem',
+                  padding: '24px',
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--ef-volt)',
+                  borderRadius: '12px',
+                }}
+              >
+                <span className="section-index">REPORT SCORE FOR {selectedMatch.id}</span>
+                <h3 style={{ margin: '10px 0 20px', color: '#fff' }}>Submit Match Proof</h3>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                  <div className="field">
+                    <label>Score for Player A</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="99"
+                      value={scoreA}
+                      onChange={(e) => setScoreA(e.target.value)}
+                      placeholder="e.g. 3"
+                    />
+                  </div>
+                  <div className="field">
+                    <label>Score for Player B</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="99"
+                      value={scoreB}
+                      onChange={(e) => setScoreB(e.target.value)}
+                      placeholder="e.g. 1"
+                    />
+                  </div>
+                </div>
+
+                <div className="field">
+                  <label>Match Proof Screenshot (Cloudinary upload)</label>
+                  <input
+                    type="file"
+                    accept="image/png, image/jpeg, image/webp"
+                    onChange={(e) => setEvidenceFile(e.target.files?.[0] || null)}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: '14px', marginTop: '18px' }}>
+                  <button
+                    className="matchday-button primary"
+                    onClick={submitMatchResult}
+                    disabled={uploading || scoreA === '' || scoreB === ''}
+                  >
+                    {uploading ? 'UPLOADING PROOF…' : 'CONFIRM SCORE ↗'}
+                  </button>
+                  <button className="matchday-button secondary" onClick={() => setSelectedMatch(null)}>
+                    Cancel
+                  </button>
+                </div>
+
+                {resultMsg && (
+                  <p
+                    style={{
+                      marginTop: '1rem',
+                      color: resultMsg.startsWith('success') ? 'var(--ef-volt)' : 'var(--ef-red)',
+                    }}
+                  >
+                    {resultMsg}
+                  </p>
+                )}
+              </div>
+            )}
           </section>
         </section>
       </main>
 
+      {/* FOOTER */}
       <footer className="matchday-footer">
         <span>
           eFootball <b>2026</b>
@@ -317,4 +500,5 @@ export default function Tournament() {
     </div>
   );
 }
+
 
