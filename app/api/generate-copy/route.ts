@@ -1,3 +1,88 @@
 import { NextRequest, NextResponse } from 'next/server';
-const providers={openrouter:{url:'https://openrouter.ai/api/v1/chat/completions',key:'OPENROUTER_API_KEY',model:'meta-llama/llama-3.3-70b-instruct'},groq:{url:'https://api.groq.com/openai/v1/chat/completions',key:'GROQ_API_KEY',model:'llama-3.3-70b-versatile'},nvidia:{url:'https://integrate.api.nvidia.com/v1/chat/completions',key:'NVIDIA_API_KEY',model:'meta/llama-3.1-70b-instruct'}} as const;
-export async function POST(request:NextRequest){const body=await request.json().catch(()=>null);if(!body||typeof body.prompt!=='string'||body.prompt.trim().length<10)return NextResponse.json({error:'Enter a descriptive copy prompt.'},{status:400});const provider=body.provider as keyof typeof providers;const config=providers[provider];if(!config)return NextResponse.json({error:'Unsupported copy provider.'},{status:400});const key=process.env[config.key];if(!key)return NextResponse.json({error:`${config.key} is not configured.`},{status:503});const response=await fetch(config.url,{method:'POST',headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},body:JSON.stringify({model:config.model,messages:[{role:'system',content:'Write concise, energetic social media copy for a free eFootball community tournament. Do not claim affiliation with KONAMI. Include a clear call to action when useful.'},{role:'user',content:body.prompt.trim()}],temperature:.8,max_tokens:350})});const data=await response.json().catch(()=>({}));if(!response.ok)return NextResponse.json({error:data.error?.message||`${provider} copy request failed (${response.status})`},{status:response.status});const text=data.choices?.[0]?.message?.content;if(typeof text!=='string'||!text.trim())return NextResponse.json({error:'The provider returned no copy.'},{status:502});return NextResponse.json({text:text.trim(),provider})}
+
+const DASHSCOPE_KEY =
+  process.env.DASHSCOPE_API_KEY ||
+  'sk-ws-H.DDHDXEX.qvKW.MEQCIFeS2JXp1n4lslRc0z6iOqIZgUF24gNojvWMTS1_KIUAAiAmru1uflsT1iRv9vbfChiGUN8oV4eKqZsEHWcquw_w-w';
+
+const DASHSCOPE_WORKSPACE = process.env.DASHSCOPE_WORKSPACE_ID || 'ws-ol68l9sr3gs9rhj4';
+
+const providers = {
+  qwen: {
+    url: 'https://ws-ol68l9sr3gs9rhj4.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1/chat/completions',
+    key: DASHSCOPE_KEY,
+    workspace: DASHSCOPE_WORKSPACE,
+    model: 'qwen-plus',
+  },
+  openrouter: {
+    url: 'https://openrouter.ai/api/v1/chat/completions',
+    key: process.env.OPENROUTER_API_KEY,
+    model: 'meta-llama/llama-3.3-70b-instruct',
+  },
+  groq: {
+    url: 'https://api.groq.com/openai/v1/chat/completions',
+    key: process.env.GROQ_API_KEY,
+    model: 'llama-3.3-70b-versatile',
+  },
+  nvidia: {
+    url: 'https://integrate.api.nvidia.com/v1/chat/completions',
+    key: process.env.NVIDIA_API_KEY,
+    model: 'meta/llama-3.1-70b-instruct',
+  },
+} as const;
+
+export async function POST(request: NextRequest) {
+  const body = await request.json().catch(() => null);
+  if (!body || typeof body.prompt !== 'string' || body.prompt.trim().length < 5) {
+    return NextResponse.json({ error: 'Enter a descriptive copy prompt.' }, { status: 400 });
+  }
+
+  const provider = (body.provider as keyof typeof providers) || 'qwen';
+  const config = providers[provider] || providers.qwen;
+
+  const key = config.key || DASHSCOPE_KEY;
+  if (!key) {
+    return NextResponse.json({ error: `${provider} API key is not configured.` }, { status: 503 });
+  }
+
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${key}`,
+    'Content-Type': 'application/json',
+  };
+
+  if ('workspace' in config && config.workspace) {
+    headers['X-DashScope-WorkSpace'] = config.workspace;
+  }
+
+  const response = await fetch(config.url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      model: config.model,
+      messages: [
+        {
+          role: 'system',
+          content:
+            'Write concise, high-energy social media copy and hashtags for an eFootball 2026 esports community tournament.',
+        },
+        { role: 'user', content: body.prompt.trim() },
+      ],
+      temperature: 0.8,
+      max_tokens: 400,
+    }),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    return NextResponse.json(
+      { error: data.error?.message || `${provider} copy request failed (${response.status})` },
+      { status: response.status }
+    );
+  }
+
+  const text = data.choices?.[0]?.message?.content;
+  if (typeof text !== 'string' || !text.trim()) {
+    return NextResponse.json({ error: 'The provider returned no copy.' }, { status: 502 });
+  }
+
+  return NextResponse.json({ text: text.trim(), provider });
+}
