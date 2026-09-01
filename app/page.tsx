@@ -64,11 +64,17 @@ export default function Home() {
       </header>
 
       <main>
-        {/* HERO SECTION */}
+        {/* HERO SECTION WITH KONAMI BOKEH ORBS */}
         <section className="matchday-hero">
+          {/* KONAMI BOKEH ORBS */}
+          <div className="konami-orb orb-cyan-lg" />
+          <div className="konami-orb orb-pink-md" />
+          <div className="konami-orb orb-cyan-sm" />
+          <div className="konami-orb orb-magenta-sm" />
+
           <div className="hero-copy">
             <span className="live-kicker">
-              <i /> LIVE COMMUNITY CIRCUIT
+              <i /> eFootball™ 2026 COMMUNITY CIRCUIT
             </span>
             <h1>
               Play the match.
@@ -76,22 +82,22 @@ export default function Home() {
               <em>Own the moment.</em>
             </h1>
             <p>
-              Free, competitive eFootball Mobile cups built for real players. Reserve your slot, enter the custom Konami
-              lobby, and make your run to the grand final.
+              Official community matchdays built for real players. Reserve your slot, enter the custom Konami
+              lobby code, and make your championship run to the grand final.
             </p>
             <div className="hero-actions">
               <a className="matchday-button primary" href="#tournaments">
                 Enter Next Cup <span>↗</span>
               </a>
               <a className="text-link" href="#how">
-                Tournament Format <span>↓</span>
+                Tournament Route <span>↓</span>
               </a>
             </div>
           </div>
 
           <div className="scoreboard-hero">
             <div className="scoreboard-label">
-              <span>FEATURED MATCHDAY</span>
+              <span>SPECIAL COMMUNITY EDITION</span>
               <span>LOBBY #01</span>
             </div>
             <div className="scoreboard-main">
@@ -107,13 +113,9 @@ export default function Home() {
               <span>·</span>
               <span>FREE ENTRY</span>
               <span>·</span>
-              <span>SINGLE ELIMINATION</span>
+              <span>MOBILE / CONSOLE</span>
             </div>
-            <div className="pitch-lines">
-              <i />
-              <i />
-              <i />
-            </div>
+            <div className="pitch-lines" />
           </div>
         </section>
 
@@ -123,7 +125,7 @@ export default function Home() {
           <i />
           <span>8 PLAYER KNOCKOUT</span>
           <i />
-          <span>VERIFIED RESULTS</span>
+          <span>VERIFIED KONAMI ROOMS</span>
           <i />
           <span>GLOBAL RANKINGS</span>
         </section>
@@ -179,6 +181,7 @@ export default function Home() {
             })}
           </div>
         </section>
+
 
         {/* FORMAT SECTION */}
         <section className="route-section" id="how">

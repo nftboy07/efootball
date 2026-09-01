@@ -1,25 +1,29 @@
-@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;0,800;0,900;1,700;1,800;1,900&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;0,800;0,900;1,700;1,800;1,900&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@500;700;800&display=swap');
 
 :root {
-  --bg-deep: #070a0e;
-  --bg-surface: #0e141c;
-  --bg-card: rgba(18, 26, 38, 0.85);
-  --bg-card-hover: rgba(25, 36, 52, 0.95);
-  --bg-glass: rgba(14, 20, 28, 0.7);
-  --border-subtle: rgba(200, 255, 0, 0.12);
-  --border-glass: rgba(255, 255, 255, 0.08);
-  --border-active: #c8ff00;
+  /* KONAMI OFFICIAL eFOOTBALL COLOR PALETTE */
+  --bg-deep: #030617;
+  --bg-surface: #090e2c;
+  --bg-card: rgba(13, 19, 52, 0.85);
+  --bg-card-hover: rgba(20, 30, 80, 0.95);
+  --bg-glass: rgba(10, 15, 44, 0.75);
   
-  --text-primary: #f5f8fc;
-  --text-secondary: #8e9cae;
-  --text-muted: #5d6b7c;
+  --konami-cyan: #00f0ff;
+  --konami-cyan-glow: rgba(0, 240, 255, 0.5);
+  --konami-pink: #ff007f;
+  --konami-pink-glow: rgba(255, 0, 127, 0.5);
+  --konami-magenta: #e6007e;
+  --konami-blue: #0070f3;
+  --konami-yellow: #eaff00;
+  --konami-yellow-glow: rgba(234, 255, 0, 0.4);
   
-  --ef-volt: #c8ff00;
-  --ef-volt-glow: rgba(200, 255, 0, 0.35);
-  --ef-cyan: #00f0ff;
-  --ef-cyan-glow: rgba(0, 240, 255, 0.3);
-  --ef-red: #ff385c;
-  --ef-orange: #ff7300;
+  --border-glass: rgba(255, 255, 255, 0.12);
+  --border-cyan: rgba(0, 240, 255, 0.4);
+  --border-pink: rgba(255, 0, 127, 0.4);
+  
+  --text-primary: #ffffff;
+  --text-secondary: #a9b8dc;
+  --text-muted: #627299;
   
   --font-display: 'Barlow Condensed', -apple-system, sans-serif;
   --font-body: 'DM Sans', -apple-system, sans-serif;
@@ -43,20 +47,1368 @@ body {
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   background-image: 
-    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0, 240, 255, 0.08), transparent 70%),
-    radial-gradient(circle at 90% 20%, rgba(200, 255, 0, 0.04), transparent 50%),
-    linear-gradient(to bottom, #070a0e 0%, #0a0e14 100%);
+    radial-gradient(circle at 15% 15%, rgba(0, 240, 255, 0.18), transparent 40%),
+    radial-gradient(circle at 85% 25%, rgba(255, 0, 127, 0.22), transparent 45%),
+    radial-gradient(circle at 50% 75%, rgba(0, 112, 243, 0.15), transparent 50%),
+    linear-gradient(180deg, #030617 0%, #080c29 50%, #030514 100%);
+  background-attachment: fixed;
   min-height: 100vh;
+  overflow-x: hidden;
 }
 
 ::selection {
-  background: var(--ef-volt);
-  color: #000;
+  background: var(--konami-pink);
+  color: #fff;
 }
 
 :focus-visible {
-  outline: 2px solid var(--ef-volt);
+  outline: 2px solid var(--konami-cyan);
   outline-offset: 3px;
+}
+
+/* SHELL & NAVIGATION */
+.matchday-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.matchday-nav {
+  height: 86px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 1320px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 0 32px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(3, 6, 23, 0.85);
+  backdrop-filter: blur(18px);
+  border-bottom: 1px solid var(--border-glass);
+}
+
+.brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: #fff;
+  text-decoration: none;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 26px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.brand-lockup span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.brand-lockup span b {
+  color: var(--konami-cyan);
+  font-style: italic;
+  text-shadow: 0 0 15px var(--konami-cyan-glow);
+}
+
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  background: linear-gradient(135deg, #00f0ff 0%, #0070f3 50%, #ff007f 100%);
+  border-radius: 50%;
+  color: #fff;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 22px;
+  box-shadow: 0 0 20px var(--konami-cyan-glow);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.brand-lockup:hover .brand-mark {
+  transform: scale(1.08) rotate(5deg);
+  box-shadow: 0 0 30px var(--konami-pink-glow);
+}
+
+nav {
+  display: flex;
+  align-items: center;
+  gap: 36px;
+}
+
+nav a {
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  transition: color 0.2s ease;
+  position: relative;
+  padding: 6px 0;
+}
+
+nav a:hover {
+  color: var(--konami-cyan);
+  text-shadow: 0 0 12px var(--konami-cyan-glow);
+}
+
+nav a::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 0%;
+  height: 2px;
+  background: linear-gradient(90deg, var(--konami-cyan), var(--konami-pink));
+  transition: width 0.25s ease;
+}
+
+nav a:hover::after {
+  width: 100%;
+}
+
+.nav-admin {
+  color: #fff !important;
+  border: 1px solid var(--konami-pink);
+  padding: 8px 18px !important;
+  border-radius: 99px;
+  background: linear-gradient(135deg, rgba(255, 0, 127, 0.15) 0%, rgba(0, 240, 255, 0.1) 100%);
+  box-shadow: 0 0 15px rgba(255, 0, 127, 0.25);
+}
+
+.nav-admin:hover {
+  background: linear-gradient(135deg, rgba(255, 0, 127, 0.35) 0%, rgba(0, 240, 255, 0.2) 100%);
+  box-shadow: 0 0 25px var(--konami-pink-glow);
+}
+
+/* KONAMI BANNER & HERO SECTION */
+.matchday-hero {
+  max-width: 1320px;
+  margin: 0 auto;
+  min-height: 680px;
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  align-items: center;
+  gap: 60px;
+  padding: 80px 32px 100px;
+  position: relative;
+}
+
+/* BOKEH ORB BACKGROUND DECORATIONS (MATCHING KONAMI BANNER) */
+.konami-orb {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.orb-cyan-lg {
+  width: 320px;
+  height: 320px;
+  top: 5%;
+  left: -80px;
+  background: radial-gradient(circle, rgba(0, 240, 255, 0.3) 0%, rgba(0, 240, 255, 0.05) 60%, transparent 80%);
+  border: 2px solid rgba(0, 240, 255, 0.4);
+  box-shadow: 0 0 50px var(--konami-cyan-glow);
+  filter: blur(2px);
+}
+
+.orb-pink-md {
+  width: 220px;
+  height: 220px;
+  top: 15%;
+  right: 5%;
+  background: radial-gradient(circle, rgba(255, 0, 127, 0.35) 0%, rgba(255, 0, 127, 0.05) 60%, transparent 80%);
+  border: 2px solid rgba(255, 0, 127, 0.5);
+  box-shadow: 0 0 60px var(--konami-pink-glow);
+}
+
+.orb-cyan-sm {
+  width: 90px;
+  height: 90px;
+  bottom: 20%;
+  left: 45%;
+  background: radial-gradient(circle, #00f0ff 0%, rgba(0, 240, 255, 0.2) 70%, transparent 100%);
+  box-shadow: 0 0 35px var(--konami-cyan-glow);
+}
+
+.orb-magenta-sm {
+  width: 110px;
+  height: 110px;
+  bottom: 12%;
+  right: 25%;
+  background: radial-gradient(circle, #ff007f 0%, rgba(255, 0, 127, 0.2) 70%, transparent 100%);
+  box-shadow: 0 0 40px var(--konami-pink-glow);
+}
+
+.hero-copy {
+  position: relative;
+  z-index: 2;
+}
+
+.live-kicker, .section-index {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--konami-cyan);
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-shadow: 0 0 15px var(--konami-cyan-glow);
+}
+
+.live-kicker i, .cup-status i {
+  width: 10px;
+  height: 10px;
+  display: inline-block;
+  border-radius: 50%;
+  background: var(--konami-pink);
+  box-shadow: 0 0 15px var(--konami-pink);
+  animation: pulse-dot 1.5s infinite;
+}
+
+@keyframes pulse-dot {
+  0% { transform: scale(0.9); opacity: 0.8; }
+  50% { transform: scale(1.3); opacity: 1; box-shadow: 0 0 20px var(--konami-pink); }
+  100% { transform: scale(0.9); opacity: 0.8; }
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+}
+
+h1 {
+  font-size: clamp(64px, 8.5vw, 130px);
+  line-height: 0.88;
+  margin: 22px 0 28px;
+  font-weight: 900;
+  font-style: italic;
+  color: #ffffff;
+}
+
+h1 em, h2 em {
+  font-style: italic;
+  background: linear-gradient(135deg, #00f0ff 0%, #ff007f 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 30px var(--konami-cyan-glow));
+}
+
+.hero-copy p {
+  max-width: 530px;
+  color: var(--text-secondary);
+  font-size: 18px;
+  line-height: 1.6;
+  margin: 0 0 36px;
+}
+
+.hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+/* KONAMI BUTTONS */
+.matchday-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  min-height: 54px;
+  padding: 14px 32px;
+  text-decoration: none;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  border-radius: 99px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.matchday-button.primary {
+  background: linear-gradient(135deg, #00f0ff 0%, #0070f3 50%, #ff007f 100%);
+  color: #ffffff;
+  border: none;
+  box-shadow: 0 6px 25px rgba(0, 240, 255, 0.4), 0 0 30px rgba(255, 0, 127, 0.3);
+}
+
+.matchday-button.primary:hover {
+  transform: translateY(-3px) scale(1.02);
+  box-shadow: 0 10px 35px rgba(0, 240, 255, 0.6), 0 0 45px rgba(255, 0, 127, 0.5);
+}
+
+.matchday-button.secondary {
+  background: rgba(13, 19, 52, 0.7);
+  color: #fff;
+  border: 1px solid var(--border-glass);
+  backdrop-filter: blur(10px);
+}
+
+.matchday-button.secondary:hover {
+  background: rgba(20, 30, 80, 0.9);
+  border-color: var(--konami-cyan);
+  box-shadow: 0 0 20px var(--konami-cyan-glow);
+}
+
+.text-link {
+  color: var(--konami-cyan);
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.text-link:hover {
+  color: #ffffff;
+  text-shadow: 0 0 15px var(--konami-cyan-glow);
+}
+
+/* KONAMI BANNER SCOREBOARD CARD */
+.scoreboard-hero {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(145deg, #0c1236 0%, #06091e 100%);
+  border: 2px solid;
+  border-image: linear-gradient(135deg, #00f0ff, #ff007f) 1;
+  padding: 36px;
+  min-height: 420px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7), 0 0 40px rgba(0, 240, 255, 0.15), 0 0 40px rgba(255, 0, 127, 0.15);
+}
+
+.scoreboard-label {
+  color: var(--konami-cyan);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: 0.2em;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: relative;
+  z-index: 2;
+  text-shadow: 0 0 10px var(--konami-cyan-glow);
+}
+
+.scoreboard-label span:last-child {
+  color: var(--konami-pink);
+  font-family: var(--font-mono);
+  text-shadow: 0 0 10px var(--konami-pink-glow);
+}
+
+.scoreboard-main {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 54px;
+  line-height: 0.85;
+  letter-spacing: -0.03em;
+  margin: 28px 0;
+}
+
+.scoreboard-main span {
+  color: #fff;
+  font-style: italic;
+}
+
+.scoreboard-main strong {
+  font-size: 165px;
+  line-height: 0.7;
+  color: #ffffff;
+  font-style: italic;
+  text-shadow: 0 0 35px var(--konami-cyan-glow), 0 0 60px var(--konami-pink-glow);
+}
+
+.scoreboard-meta {
+  display: flex;
+  gap: 20px;
+  position: relative;
+  z-index: 2;
+  color: var(--text-secondary);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: 0.14em;
+  border-top: 1px solid var(--border-glass);
+  padding-top: 18px;
+}
+
+.pitch-lines {
+  position: absolute;
+  inset: 0;
+  opacity: 0.25;
+  pointer-events: none;
+  background-image: 
+    radial-gradient(circle at center, rgba(0, 240, 255, 0.4) 0%, transparent 60%),
+    linear-gradient(to right, rgba(0, 240, 255, 0.15) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 0, 127, 0.15) 1px, transparent 1px);
+  background-size: 100% 100%, 40px 40px, 40px 40px;
+}
+
+/* SIGNAL HIGHLIGHT BANNER */
+.signal-bar {
+  background: linear-gradient(90deg, #090e2c 0%, #151a4a 50%, #090e2c 100%);
+  border-block: 1px solid rgba(0, 240, 255, 0.3);
+  display: flex;
+  justify-content: center;
+  gap: 40px;
+  align-items: center;
+  padding: 18px 24px;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 14px;
+  letter-spacing: 0.18em;
+  color: #ffffff;
+  box-shadow: 0 0 30px rgba(0, 240, 255, 0.1);
+}
+
+.signal-bar span {
+  color: #ffffff;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+}
+
+.signal-bar i {
+  height: 6px;
+  width: 6px;
+  border-radius: 50%;
+  background: var(--konami-pink);
+  box-shadow: 0 0 10px var(--konami-pink);
+}
+
+/* SECTIONS */
+.section {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 100px 32px;
+  position: relative;
+}
+
+.section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 50px;
+  margin-bottom: 50px;
+}
+
+.section h2, .route-intro h2 {
+  font-size: clamp(48px, 6vw, 86px);
+  line-height: 0.9;
+  letter-spacing: -0.03em;
+  margin-top: 14px;
+  font-style: italic;
+  font-weight: 900;
+}
+
+.section-heading > p, .route-intro p {
+  max-width: 400px;
+  color: var(--text-secondary);
+  font-size: 16px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* KONAMI EDITION / CUP CARDS */
+.cup-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 28px;
+}
+
+.cup-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 340px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-glass);
+  border-radius: 16px;
+  padding: 32px;
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+  backdrop-filter: blur(14px);
+}
+
+.cup-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  padding: 2px;
+  background: linear-gradient(135deg, var(--konami-cyan), transparent 50%, var(--konami-pink));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0.5;
+  transition: opacity 0.3s ease;
+}
+
+.cup-card:hover {
+  transform: translateY(-6px);
+  background: var(--bg-card-hover);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), 0 0 35px rgba(0, 240, 255, 0.2), 0 0 35px rgba(255, 0, 127, 0.15);
+}
+
+.cup-card:hover::before {
+  opacity: 1;
+}
+
+.cup-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.cup-status {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--text-primary);
+}
+
+.cup-card-body {
+  margin: 28px 0;
+}
+
+.cup-number {
+  color: var(--konami-cyan);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  letter-spacing: 0.1em;
+  text-shadow: 0 0 8px var(--konami-cyan-glow);
+}
+
+.cup-card h3 {
+  font-size: 42px;
+  margin: 10px 0 18px;
+  font-style: italic;
+  font-weight: 900;
+  color: #fff;
+}
+
+.cup-card-body p {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 34px;
+  margin: 0 0 14px;
+  color: #fff;
+}
+
+.cup-card-body p small {
+  color: var(--text-secondary);
+  font-size: 16px;
+  letter-spacing: 0.04em;
+  font-family: var(--font-body);
+  font-weight: 500;
+}
+
+.progress-track {
+  height: 7px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.progress-track i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #00f0ff 0%, #0070f3 50%, #ff007f 100%);
+  border-radius: 99px;
+  transition: width 0.4s ease;
+  box-shadow: 0 0 12px var(--konami-cyan-glow);
+}
+
+/* ROUTE / TOURNAMENT FORMAT */
+.route-section {
+  display: grid;
+  grid-template-columns: 0.8fr 1.2fr;
+  gap: 80px;
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 100px 32px;
+  border-block: 1px solid var(--border-glass);
+  background: radial-gradient(circle at 75% 50%, rgba(255, 0, 127, 0.08), transparent 60%);
+}
+
+.route-track {
+  display: grid;
+  grid-template-columns: 1fr 40px 1fr 40px 1fr;
+  align-items: center;
+  gap: 16px;
+}
+
+.route-track > div {
+  display: grid;
+  gap: 8px;
+  background: var(--bg-card);
+  padding: 26px 22px;
+  border-radius: 12px;
+  border: 1px solid var(--border-glass);
+  backdrop-filter: blur(10px);
+}
+
+.route-track b {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 36px;
+  color: var(--konami-cyan);
+  font-style: italic;
+  text-shadow: 0 0 15px var(--konami-cyan-glow);
+}
+
+.route-track strong {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 20px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.route-track span {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.route-track > i {
+  height: 2px;
+  background: linear-gradient(90deg, var(--konami-cyan), var(--konami-pink));
+  box-shadow: 0 0 12px var(--konami-cyan-glow);
+}
+
+.final-stop {
+  background: linear-gradient(145deg, #1f1345 0%, #0d0f2b 100%) !important;
+  border: 2px solid var(--konami-pink) !important;
+  box-shadow: 0 0 35px var(--konami-pink-glow) !important;
+}
+
+.final-stop b {
+  color: var(--konami-pink) !important;
+  text-shadow: 0 0 15px var(--konami-pink-glow) !important;
+}
+
+/* RANKINGS TABLE */
+.rankings-section {
+  padding-bottom: 130px;
+}
+
+.ranking-table {
+  border: 1px solid var(--border-glass);
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--bg-card);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+}
+
+.ranking-head, .ranking-row {
+  display: grid;
+  grid-template-columns: 90px 1fr 110px 110px 120px;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 24px;
+}
+
+.ranking-head {
+  background: rgba(10, 15, 42, 0.95);
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border-glass);
+}
+
+.ranking-row {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 600;
+  transition: background 0.2s ease;
+}
+
+.ranking-row:hover {
+  background: rgba(0, 240, 255, 0.06);
+}
+
+.ranking-row:last-child {
+  border-bottom: none;
+}
+
+.ranking-row > b {
+  color: var(--konami-cyan);
+  font-weight: 800;
+  font-family: var(--font-mono);
+  text-shadow: 0 0 10px var(--konami-cyan-glow);
+}
+
+.ranking-row strong {
+  font-size: 21px;
+  color: #fff;
+  font-style: italic;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.ranking-row em {
+  font-style: normal;
+  color: var(--konami-yellow);
+  font-weight: 900;
+  font-size: 24px;
+  text-shadow: 0 0 15px var(--konami-yellow-glow);
+}
+
+.ranking-empty {
+  padding: 40px 24px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 15px;
+}
+
+/* FOOTER */
+.matchday-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  padding: 36px 32px;
+  max-width: 1320px;
+  width: 100%;
+  margin: auto auto 0;
+  border-top: 1px solid var(--border-glass);
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.matchday-footer > span:first-child {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 20px;
+  color: #fff;
+  text-transform: uppercase;
+}
+
+.matchday-footer b {
+  color: var(--konami-cyan);
+}
+
+.matchday-footer a {
+  color: var(--text-primary);
+  font-weight: 700;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.matchday-footer a:hover {
+  color: var(--konami-cyan);
+}
+
+.social-links {
+  display: flex;
+  gap: 24px;
+}
+
+.social-links a {
+  color: var(--text-secondary) !important;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 8px 18px;
+  border: 1px solid var(--border-glass);
+  border-radius: 99px;
+  transition: all 0.25s ease;
+}
+
+.social-links a:hover {
+  color: #fff !important;
+  border-color: var(--konami-pink);
+  background: rgba(255, 0, 127, 0.15);
+  box-shadow: 0 0 20px var(--konami-pink-glow);
+}
+
+/* TOURNAMENT DETAIL PAGE */
+.tournament-hero {
+  max-width: 1320px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 60px;
+  align-items: end;
+  padding: 80px 32px 70px;
+  border-bottom: 1px solid var(--border-glass);
+  position: relative;
+}
+
+.tournament-score {
+  background: linear-gradient(145deg, #0c1236 0%, #06091e 100%);
+  border: 2px solid;
+  border-image: linear-gradient(135deg, #00f0ff, #ff007f) 1;
+  padding: 32px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+}
+
+.tournament-score > strong {
+  display: block;
+  color: #ffffff;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 110px;
+  line-height: 0.85;
+  margin: 20px 0 16px;
+  font-style: italic;
+  text-shadow: 0 0 30px var(--konami-cyan-glow);
+}
+
+.tournament-score small {
+  font-size: 28px;
+  color: var(--text-secondary);
+}
+
+.tournament-score > b {
+  display: block;
+  margin-top: 18px;
+  color: var(--konami-cyan);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.18em;
+  text-shadow: 0 0 10px var(--konami-cyan-glow);
+}
+
+.code-panel {
+  background: linear-gradient(135deg, rgba(0, 240, 255, 0.15) 0%, rgba(255, 0, 127, 0.15) 100%);
+  border: 2px solid var(--konami-cyan);
+  border-radius: 16px;
+  padding: 36px;
+  margin-bottom: 70px;
+  box-shadow: 0 0 40px var(--konami-cyan-glow);
+}
+
+.code-panel strong {
+  display: block;
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: clamp(38px, 6vw, 76px);
+  line-height: 0.9;
+  letter-spacing: 0.08em;
+  margin: 16px 0;
+  color: #ffffff;
+  text-shadow: 0 0 25px var(--konami-cyan-glow), 0 0 45px var(--konami-pink-glow);
+}
+
+.code-panel p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 15px;
+}
+
+.tournament-columns {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 60px;
+}
+
+.roster {
+  border: 1px solid var(--border-glass);
+  border-radius: 16px;
+  background: var(--bg-card);
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+}
+
+.roster-row {
+  display: grid;
+  grid-template-columns: 60px 1fr 1fr;
+  gap: 16px;
+  align-items: center;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border-glass);
+}
+
+.roster-row:last-child {
+  border-bottom: none;
+}
+
+.roster-row b {
+  color: var(--konami-cyan);
+  font-family: var(--font-mono);
+  font-size: 16px;
+  text-shadow: 0 0 8px var(--konami-cyan-glow);
+}
+
+.roster-row strong {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 20px;
+  color: #fff;
+  text-transform: uppercase;
+}
+
+.roster-row span {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.join-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border-glass);
+  border-radius: 16px;
+  padding: 34px;
+  height: max-content;
+  backdrop-filter: blur(10px);
+}
+
+.join-panel h2 {
+  font-size: 50px;
+  line-height: 0.9;
+  margin: 16px 0 24px;
+  font-style: italic;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.field label {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.field input, .field textarea, .field select {
+  background: rgba(5, 8, 27, 0.9);
+  border: 1px solid var(--border-glass);
+  border-radius: 8px;
+  padding: 14px 16px;
+  color: #fff;
+  font-family: var(--font-body);
+  font-size: 16px;
+  transition: all 0.25s ease;
+}
+
+.field input:focus, .field textarea:focus, .field select:focus {
+  border-color: var(--konami-cyan);
+  box-shadow: 0 0 20px var(--konami-cyan-glow);
+  outline: none;
+}
+
+.full {
+  width: 100%;
+}
+
+.status-note {
+  padding: 24px;
+  border-radius: 12px;
+  border: 1px solid var(--border-glass);
+  background: rgba(13, 19, 52, 0.85);
+  color: var(--text-secondary);
+  backdrop-filter: blur(10px);
+}
+
+.matches-section {
+  margin-top: 80px;
+  border-top: 1px solid var(--border-glass);
+  padding-top: 40px;
+}
+
+.match-list {
+  border: 1px solid var(--border-glass);
+  border-radius: 16px;
+  background: var(--bg-card);
+  overflow: hidden;
+  margin-top: 24px;
+  backdrop-filter: blur(10px);
+}
+
+.match-row {
+  display: grid;
+  grid-template-columns: 100px 1fr 40px 1fr 40px 130px;
+  gap: 16px;
+  align-items: center;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--border-glass);
+}
+
+.match-row:last-child {
+  border-bottom: none;
+}
+
+.match-row span, .match-row small {
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+}
+
+.match-row strong {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 20px;
+  text-transform: uppercase;
+  color: #fff;
+}
+
+.match-row b {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 24px;
+  color: var(--konami-cyan);
+  text-shadow: 0 0 10px var(--konami-cyan-glow);
+}
+
+/* ADMIN PANEL STYLES */
+.shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.nav {
+  height: 86px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 1320px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 0 32px;
+  border-bottom: 1px solid var(--border-glass);
+}
+
+.brand {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 24px;
+  color: #fff;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.brand span {
+  color: var(--konami-cyan);
+  font-style: italic;
+  margin-left: 2px;
+}
+
+.pill {
+  background: var(--konami-pink);
+  color: #fff;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  padding: 6px 14px;
+  border-radius: 99px;
+  box-shadow: 0 0 15px var(--konami-pink-glow);
+}
+
+.admin-page {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.admin-login {
+  max-width: 480px;
+  margin: 60px auto;
+  text-align: center;
+}
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-glass);
+  border-radius: 16px;
+  padding: 32px;
+  backdrop-filter: blur(12px);
+}
+
+.eyebrow {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--konami-cyan);
+  display: block;
+  margin-bottom: 8px;
+  text-shadow: 0 0 10px var(--konami-cyan-glow);
+}
+
+.muted {
+  color: var(--text-secondary);
+  font-size: 15px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 50px;
+  padding: 12px 28px;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border-radius: 99px;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  border: 1px solid var(--border-glass);
+  transition: all 0.25s ease;
+}
+
+.btn.primary {
+  background: linear-gradient(135deg, #00f0ff 0%, #ff007f 100%);
+  color: #fff;
+  border: none;
+  box-shadow: 0 0 25px var(--konami-pink-glow);
+}
+
+.btn.primary:hover:not(:disabled) {
+  transform: scale(1.02);
+  box-shadow: 0 0 35px var(--konami-cyan-glow), 0 0 45px var(--konami-pink-glow);
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.admin-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+}
+
+.admin-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.admin-tournament {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background: rgba(5, 8, 27, 0.8);
+  border: 1px solid var(--border-glass);
+  border-radius: 12px;
+  color: #fff;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s ease;
+}
+
+.admin-tournament.active, .admin-tournament:hover {
+  border-color: var(--konami-cyan);
+  background: rgba(0, 240, 255, 0.08);
+  box-shadow: 0 0 20px var(--konami-cyan-glow);
+}
+
+.admin-tournament span strong {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-style: italic;
+}
+
+.admin-tournament span small {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.admin-tournament b {
+  font-family: var(--font-mono);
+  color: var(--konami-cyan);
+  font-size: 16px;
+}
+
+.admin-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.count-badge {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 38px;
+  color: var(--konami-cyan);
+  font-style: italic;
+  text-shadow: 0 0 15px var(--konami-cyan-glow);
+}
+
+.count-badge span {
+  font-size: 15px;
+  color: var(--text-secondary);
+  margin-left: 6px;
+}
+
+.player-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.playerrow {
+  display: flex;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background: rgba(5, 8, 27, 0.7);
+  border-radius: 8px;
+  border: 1px solid var(--border-glass);
+  font-size: 15px;
+}
+
+.admin-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.inline-field {
+  margin-bottom: 0;
+  flex: 1;
+  min-width: 200px;
+}
+
+.notice {
+  padding: 18px;
+  background: rgba(0, 240, 255, 0.1);
+  border: 1px solid var(--konami-cyan);
+  border-radius: 12px;
+  color: var(--konami-cyan);
+  font-family: var(--font-mono);
+  box-shadow: 0 0 20px var(--konami-cyan-glow);
+}
+
+.error {
+  color: var(--konami-pink);
+  font-size: 14px;
+  margin-top: 10px;
+}
+
+.success {
+  color: var(--konami-cyan);
+  font-size: 14px;
+  margin-top: 10px;
+}
+
+/* RESPONSIVENESS */
+@media (max-width: 900px) {
+  .matchday-hero {
+    grid-template-columns: 1fr;
+    padding-top: 50px;
+    gap: 40px;
+  }
+  .tournament-hero {
+    grid-template-columns: 1fr;
+    gap: 40px;
+  }
+  .tournament-columns {
+    grid-template-columns: 1fr;
+  }
+  .route-section {
+    grid-template-columns: 1fr;
+    gap: 40px;
+  }
+  .route-track {
+    grid-template-columns: 1fr;
+  }
+  .route-track > i {
+    width: 2px;
+    height: 30px;
+    margin: 0 auto;
+  }
+}
+
+@media (max-width: 600px) {
+  .matchday-nav {
+    padding: 0 18px;
+    height: 76px;
+  }
+  .matchday-hero, .section, .route-section, .tournament-hero {
+    padding-inline: 18px;
+  }
+  h1 {
+    font-size: clamp(52px, 14vw, 76px);
+  }
+  .scoreboard-main strong {
+    font-size: 110px;
+  }
+  .cup-grid {
+    grid-template-columns: 1fr;
+  }
+  .ranking-head, .ranking-row {
+    grid-template-columns: 45px 1fr 45px 45px 55px;
+    gap: 8px;
+    padding: 14px 12px;
+    font-size: 14px;
+  }
+  .match-row {
+    grid-template-columns: 60px 1fr 30px;
+  }
+  .match-row strong:nth-of-type(2) {
+    grid-column: 2;
+  }
+  .match-row b:nth-of-type(2) {
+    grid-column: 3;
+  }
+  .match-row small {
+    grid-column: 2 / 4;
+  }
+  .matchday-footer {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 24px 18px;
+  }
 }
 
 /* SHELL & NAVIGATION */
