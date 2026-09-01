@@ -51,12 +51,33 @@ export default function Admin() {
     phase: '',
   });
 
+  const SAVED_DEFAULT_IG_TOKEN =
+    'EAAUYKazODOYBSVmLFFSyBm1lY3TeZBBVcYdpzHlqQEigTTubccMwHpxmTLZAF8P2vlwUsDFzrypA4YVmHYujdZCbcpX94d7Vm8whJZBMLjLroV69WNxorgsZC5PNtIAPLItRdQj3FkNi6LPuMGmAeKihePvwNlcYWC9SV6n0BuEXeNZASZASN7KZBd9he49HPnA0hvbnygVpZCDzWeSn2sAkuol18mU02QIcNZBZAe1yKn0A3nZAjfFZB4iQHdgXyZCb8ZBQoads9fU7yuNYpo0Kt2SU0d91yQZD';
+
   const [copyFeedback, setCopyFeedback] = useState(false);
   const [starPlayerName, setStarPlayerName] = useState('');
-  const [igToken, setIgToken] = useState('');
+  const [igToken, setIgToken] = useState(SAVED_DEFAULT_IG_TOKEN);
   const [igUserId, setIgUserId] = useState('');
   const [igPublishing, setIgPublishing] = useState(false);
   const [igMessage, setIgMessage] = useState('');
+
+  // Auto-sync token and user ID from browser storage
+  useEffect(() => {
+    const savedToken = localStorage.getItem('efootball_ig_token');
+    const savedUserId = localStorage.getItem('efootball_ig_user_id');
+    if (savedToken) setIgToken(savedToken);
+    if (savedUserId) setIgUserId(savedUserId);
+  }, []);
+
+  const handleSetIgToken = (val: string) => {
+    setIgToken(val);
+    localStorage.setItem('efootball_ig_token', val);
+  };
+
+  const handleSetIgUserId = (val: string) => {
+    setIgUserId(val);
+    localStorage.setItem('efootball_ig_user_id', val);
+  };
 
   // 1. AUTO-CRAFT REAL PLAYER PROMPTS (MESSI, YAMAL, RONALDO, HAALAND, ETC.)
   async function autoCraftPrompt() {
@@ -835,21 +856,26 @@ export default function Admin() {
 
                       {/* DIRECT INSTAGRAM PUBLISH ACCORDION */}
                       <div style={{ background: 'rgba(0,0,0,0.4)', borderRadius: '8px', padding: '14px', border: '1px solid rgba(255,255,255,0.1)' }}>
-                        <span style={{ color: '#fff', fontSize: '14px', fontWeight: 800, fontFamily: 'var(--font-display)' }}>
-                          📲 DIRECT META INSTAGRAM GRAPH API PUBLISHING
-                        </span>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ color: '#fff', fontSize: '14px', fontWeight: 800, fontFamily: 'var(--font-display)' }}>
+                            📲 DIRECT META INSTAGRAM GRAPH API PUBLISHING
+                          </span>
+                          <span style={{ background: '#00cc66', color: '#000', fontSize: '11px', fontWeight: 900, padding: '2px 8px', borderRadius: '4px' }}>
+                            META TOKEN LOADED ✓
+                          </span>
+                        </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '8px', marginTop: '10px' }}>
                           <input
-                            placeholder="Instagram Business Account ID"
+                            placeholder="Instagram Business Account ID (e.g. 17841...)"
                             value={igUserId}
-                            onChange={(e) => setIgUserId(e.target.value)}
+                            onChange={(e) => handleSetIgUserId(e.target.value)}
                             style={{ background: '#030a38', border: '1px solid rgba(255,255,255,0.2)', padding: '8px 12px', color: '#fff', borderRadius: '4px', fontSize: '13px' }}
                           />
                           <input
                             placeholder="Instagram Access Token"
                             type="password"
                             value={igToken}
-                            onChange={(e) => setIgToken(e.target.value)}
+                            onChange={(e) => handleSetIgToken(e.target.value)}
                             style={{ background: '#030a38', border: '1px solid rgba(255,255,255,0.2)', padding: '8px 12px', color: '#fff', borderRadius: '4px', fontSize: '13px' }}
                           />
                           <button
