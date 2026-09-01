@@ -92,6 +92,9 @@ export default function Home() {
           <a className="pill-btn" href="#leaderboard">
             Online Support
           </a>
+          <a className="pill-btn" href="#reels" style={{ color: 'var(--konami-yellow)', fontWeight: 800 }}>
+            🎬 REELS
+          </a>
           <a className="pill-btn download" href="#tournaments">
             DOWNLOAD
           </a>
@@ -291,6 +294,23 @@ export default function Home() {
           </div>
           <Leaderboard />
         </section>
+
+        {/* 10. OFFICIAL AI REELS & MATCH HIGHLIGHTS SHOWCASE */}
+        <section className="section-container" id="reels" style={{ marginTop: '70px', marginBottom: '50px' }}>
+          <div className="section-title-wrap">
+            <div>
+              <span className="section-index">05 / MATCHDAY HIGHLIGHTS</span>
+              <h2 className="section-heading">
+                Trending Reels & <br />
+                <em>Superstar Highlights.</em>
+              </h2>
+            </div>
+            <p className="section-desc">
+              Cinematic AI match highlights, viral goal moments, and scheduled community tournament reels.
+            </p>
+          </div>
+          <ReelsShowcase />
+        </section>
       </main>
 
       {/* 10. OFFICIAL FOOTER LOCKUP */}
@@ -367,6 +387,155 @@ function Leaderboard() {
       {!rows.length && (
         <div className="ranking-empty">The leaderboard updates automatically after match results are confirmed.</div>
       )}
+    </div>
+  );
+}
+
+function ReelsShowcase() {
+  const [reels, setReels] = useState<any[]>([]);
+
+  useEffect(() => {
+    // 1. Try local storage first
+    try {
+      const saved = localStorage.getItem('efootball_reels_queue');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setReels(parsed);
+          return;
+        }
+      }
+    } catch {}
+
+    // 2. Fallback to API
+    fetch('/api/reels-queue')
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d.queue) && d.queue.length > 0) {
+          setReels(d.queue);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  if (!reels.length) {
+    return (
+      <div
+        style={{
+          background: 'rgba(3, 10, 56, 0.7)',
+          border: '1px solid var(--konami-yellow)',
+          borderRadius: '12px',
+          padding: '40px 20px',
+          textAlign: 'center',
+        }}
+      >
+        <span style={{ fontSize: '36px', display: 'block', marginBottom: '10px' }}>🎬</span>
+        <h3 style={{ color: '#fff', fontSize: '20px', margin: '0 0 8px' }}>Official Matchday AI Reels</h3>
+        <p style={{ color: '#88a0ff', fontSize: '14px', maxWidth: '500px', margin: '0 auto 20px' }}>
+          Follow our official channel for daily goal highlights, skill moves, and community championship reels!
+        </p>
+        <a
+          href="https://www.instagram.com/efbt__2026/"
+          target="_blank"
+          rel="noreferrer"
+          className="matchday-button primary"
+          style={{ padding: '12px 28px' }}
+        >
+          FOLLOW ON INSTAGRAM @efbt__2026 ↗
+        </a>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+      {reels.map((reel) => (
+        <div
+          key={reel.id}
+          style={{
+            background: 'linear-gradient(180deg, #081766 0%, #030a38 100%)',
+            border: '1px solid rgba(255, 255, 0, 0.4)',
+            borderRadius: '12px',
+            overflow: 'hidden',
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.4)',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          {reel.videoUrl ? (
+            <video
+              controls
+              src={reel.videoUrl}
+              style={{
+                width: '100%',
+                maxHeight: '400px',
+                objectFit: 'cover',
+                background: '#000',
+              }}
+              playsInline
+            />
+          ) : (
+            <div style={{ height: '300px', background: '#000be0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--konami-yellow)', fontWeight: 900 }}>
+              ⚽ {reel.playerTag || 'SUPERSTAR HIGHLIGHT'}
+            </div>
+          )}
+
+          <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <span
+                  style={{
+                    background: 'var(--konami-yellow)',
+                    color: '#000',
+                    fontWeight: 900,
+                    fontSize: '11px',
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                  }}
+                >
+                  ⭐ {reel.playerTag || 'SUPERSTAR'}
+                </span>
+                <span style={{ fontSize: '11px', color: '#88a0ff' }}>
+                  {reel.status === 'PUBLISHED' ? 'PUBLISHED ✓' : 'SCHEDULED REEL'}
+                </span>
+              </div>
+              <p
+                style={{
+                  color: '#ddd',
+                  fontSize: '13px',
+                  lineHeight: '1.4',
+                  margin: '0 0 14px',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 3,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                }}
+              >
+                {reel.caption}
+              </p>
+            </div>
+
+            <a
+              href="https://www.instagram.com/efbt__2026/"
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                background: 'linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888)',
+                color: '#fff',
+                fontWeight: 800,
+                fontSize: '12px',
+                padding: '10px',
+                borderRadius: '6px',
+                textAlign: 'center',
+                textDecoration: 'none',
+                display: 'block',
+              }}
+            >
+              WATCH ON INSTAGRAM @efbt__2026 ↗
+            </a>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
