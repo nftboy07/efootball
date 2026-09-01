@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
+import { useSound } from '../../components/SoundEffects';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://efootball-tournament-kwq4.onrender.com';
 
@@ -21,6 +23,7 @@ const stages = [
 export default function Tournament() {
   const params = useParams();
   const id = params?.id as string;
+  const { playWhistle, playGoalCheer, playClick } = useSound();
   const [t, setT] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState('');
@@ -65,11 +68,13 @@ export default function Tournament() {
     if (!navigator?.clipboard) return;
     navigator.clipboard.writeText(code);
     setCopied(true);
+    playClick();
     setTimeout(() => setCopied(false), 2000);
   }
 
   async function join() {
     setMsg('');
+    playClick();
     try {
       const d = await api('/api/tournaments/' + id + '/players', {
         method: 'POST',
@@ -79,6 +84,7 @@ export default function Tournament() {
       if (d?.player?.token) {
         localStorage.setItem('player_token', d.player.token);
       }
+      playGoalCheer();
       setMsg('success: Registration confirmed! Your slot is locked.');
       setName('');
       setEf('');
@@ -92,6 +98,7 @@ export default function Tournament() {
     if (!selectedMatch) return;
     setResultMsg('');
     setUploading(true);
+    playClick();
 
     try {
       const token = localStorage.getItem('player_token');
@@ -128,6 +135,7 @@ export default function Tournament() {
         }),
       });
 
+      playWhistle();
       setResultMsg('success: Score submitted! Awaiting organizer verification.');
       setSelectedMatch(null);
       setScoreA('');
@@ -299,11 +307,16 @@ export default function Tournament() {
 
                   <div className="roster">
                     {t.players?.map((p: any, i: number) => (
-                      <div className="roster-row" key={p.id || i}>
+                      <Link
+                        href={`/players/${encodeURIComponent(p.efootball_username || p.id)}`}
+                        className="roster-row"
+                        key={p.id || i}
+                        style={{ textDecoration: 'none', color: 'inherit', display: 'flex', alignItems: 'center' }}
+                      >
                         <b>#{String(i + 1).padStart(2, '0')}</b>
-                        <strong>{p.display_name}</strong>
+                        <strong>{p.display_name} ↗</strong>
                         <span>{p.efootball_username}</span>
-                      </div>
+                      </Link>
                     ))}
                     {!playerCount && <div className="ranking-empty">The first player opens the roster.</div>}
                   </div>
