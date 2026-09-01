@@ -51,6 +51,181 @@ export default function Admin() {
     phase: '',
   });
 
+  const [copyFeedback, setCopyFeedback] = useState(false);
+  const [starPlayerName, setStarPlayerName] = useState('');
+  const [igToken, setIgToken] = useState('');
+  const [igUserId, setIgUserId] = useState('');
+  const [igPublishing, setIgPublishing] = useState(false);
+  const [igMessage, setIgMessage] = useState('');
+
+  // 1. AUTO-CRAFT REAL PLAYER PROMPTS (MESSI, YAMAL, RONALDO, HAALAND, ETC.)
+  async function autoCraftPrompt() {
+    setMsg('🎲 Asking Alibaba Qwen to craft fresh superstar prompt…');
+    try {
+      const res = await fetch('/api/auto-prompt', { method: 'POST' });
+      const data = await res.json();
+      if (data.prompt) {
+        setPrompt(data.prompt);
+        setStarPlayerName(data.player || '');
+        setMsg(`success: Loaded fresh cinematic prompt featuring ${data.player || 'Superstar'}!`);
+      }
+    } catch (e: any) {
+      setMsg('error: Failed to craft prompt');
+    }
+  }
+
+  // 2. 1-CLICK AUTO-PILOT REEL PIPELINE
+  async function autoPilotReel() {
+    setGenerating(true);
+    setVideoUrl('');
+    setImageUrl('');
+    setMsg('⚡ Auto-Pilot started: Crafting real player prompt + viral caption…');
+
+    try {
+      // Step 1: Craft Prompt
+      const promptRes = await fetch('/api/auto-prompt', { method: 'POST' });
+      const promptData = await promptRes.json();
+      const chosenPrompt = promptData.prompt || prompt;
+      setPrompt(chosenPrompt);
+      setStarPlayerName(promptData.player || '');
+
+      // Step 2: Generate Viral Caption simultaneously
+      const copyPromise = fetch('/api/generate-copy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: copyProvider, prompt: chosenPrompt }),
+      })
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.text) setCopy(d.text);
+        });
+
+      // Step 3: Trigger Wan 2.1 Video Synthesis
+      const model = provider === 'wan-video-plus' ? 'wan2.1-t2v-plus' : 'wan2.1-t2v-turbo';
+      const estimated = model === 'wan2.1-t2v-plus' ? 180 : 120;
+      let seconds = 0;
+      let cloudStatus = 'PENDING';
+
+      setVideoProgress({
+        active: true,
+        elapsed: 0,
+        estimated,
+        pct: 5,
+        phase: `🚀 Initializing GPU cluster for ${promptData.player || 'Superstar'} Reel…`,
+      });
+
+      const timerInterval = setInterval(() => {
+        seconds += 1;
+        const currentPct =
+          seconds <= estimated
+            ? Math.min(95, Math.floor((seconds / estimated) * 95))
+            : Math.min(99, 95 + Math.floor(((seconds - estimated) / 40) * 4));
+
+        let currentPhase = '⏳ In Alibaba GPU Queue (allocating high-compute worker node)…';
+        if (cloudStatus === 'RUNNING' || seconds >= 30) {
+          if (seconds < 60) {
+            currentPhase = `🎬 Active GPU Synthesis: 3D camera pan & stadium lighting on ${promptData.player || 'Player'}…`;
+          } else if (seconds < 100) {
+            currentPhase = `⚽ Active GPU Synthesis: Rendering football physics & neon motion blur…`;
+          } else {
+            currentPhase = `📦 Finalizing high-fps video stream & packaging MP4…`;
+          }
+        }
+
+        setVideoProgress((prev) => ({
+          ...prev,
+          elapsed: seconds,
+          pct: Math.max(prev.pct, currentPct),
+          phase: currentPhase,
+        }));
+      }, 1000);
+
+      // Submit video task
+      const submitRes = await fetch('/api/generate-reel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: chosenPrompt, aspectRatio, model }),
+      });
+
+      const submitData = await submitRes.json();
+      if (!submitRes.ok || !submitData.taskId) {
+        clearInterval(timerInterval);
+        throw new Error(submitData.error || 'Failed to submit video task');
+      }
+
+      const taskId = submitData.taskId;
+      setVideoProgress((prev) => ({ ...prev, taskId }));
+
+      // Poll until finished
+      let finalUrl = '';
+      const maxPollTime = Date.now() + 300000;
+
+      while (Date.now() < maxPollTime) {
+        await new Promise((res) => setTimeout(res, 3500));
+        const pollRes = await fetch(`/api/generate-reel?taskId=${taskId}`);
+        const pollData = await pollRes.json();
+
+        if (pollData.status) cloudStatus = pollData.status;
+
+        if (pollData.status === 'SUCCEEDED' && (pollData.videoUrl || pollData.video?.url)) {
+          finalUrl = pollData.videoUrl || pollData.video?.url;
+          break;
+        } else if (pollData.status === 'FAILED') {
+          clearInterval(timerInterval);
+          throw new Error(pollData.error || 'Video synthesis failed');
+        }
+      }
+
+      clearInterval(timerInterval);
+      await copyPromise;
+
+      if (!finalUrl) throw new Error('Video generation timeout');
+
+      setVideoProgress((prev) => ({ ...prev, pct: 100, phase: '✅ Auto-Pilot Reel Synthesis Complete!' }));
+      setVideoUrl(finalUrl);
+      setMsg(`success: Auto-Pilot Reel for ${promptData.player || 'Superstar'} generated!`);
+    } catch (e: any) {
+      setVideoProgress({ active: false, elapsed: 0, estimated: 120, pct: 0, phase: '' });
+      setMsg('error: ' + e.message);
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  // 3. COPY CAPTION TO CLIPBOARD
+  function copyCaption() {
+    if (!copy) return;
+    navigator.clipboard.writeText(copy);
+    setCopyFeedback(true);
+    setTimeout(() => setCopyFeedback(false), 2500);
+  }
+
+  // 4. PUBLISH TO INSTAGRAM VIA META GRAPH API
+  async function publishToInstagram() {
+    if (!videoUrl) return;
+    setIgPublishing(true);
+    setIgMessage('🚀 Uploading Reel container to Instagram Graph API…');
+    try {
+      const r = await fetch('/api/instagram-publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          videoUrl,
+          caption: copy || prompt,
+          accessToken: igToken,
+          igUserId,
+        }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Failed to publish to Instagram');
+      setIgMessage('✅ Reel successfully published to your Instagram profile!');
+    } catch (e: any) {
+      setIgMessage('⚠️ ' + e.message);
+    } finally {
+      setIgPublishing(false);
+    }
+  }
+
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [selected, setSelected] = useState('');
   const [msg, setMsg] = useState('');
@@ -375,18 +550,62 @@ export default function Admin() {
                 </p>
               </div>
 
-              {/* 1. CONTENT STUDIO: WAN 2.1 VIDEO GENERATOR */}
+              {/* 1. CONTENT STUDIO: WAN 2.1 VIDEO GENERATOR & AUTOMATED INSTAGRAM REELS */}
               <section className="admin-card">
                 <div className="section-title-wrap" style={{ marginBottom: '20px' }}>
                   <div>
-                    <span className="section-index">AI CONTENT STUDIO</span>
+                    <span className="section-index">AI CONTENT STUDIO · AUTOMATION SUITE</span>
                     <h2 className="section-heading" style={{ fontSize: '36px' }}>
-                      Alibaba Wan 2.1 <em>Video Generator.</em>
+                      Alibaba Wan 2.1 <em>Video Generator & Reels Auto-Pilot.</em>
                     </h2>
                   </div>
                   <p className="section-desc">
-                    Synthesize cinema-grade reels and tournament promotional assets via Alibaba Cloud Model Studio.
+                    Auto-generate high-energy promotional reels featuring real superstars (Messi, Yamal, Ronaldo, Haaland) and publish to Instagram.
                   </p>
+                </div>
+
+                {/* 1-CLICK AUTO-PILOT BANNER */}
+                <div
+                  style={{
+                    background: 'linear-gradient(90deg, #0d2288, #180055)',
+                    border: '2px solid var(--konami-yellow)',
+                    borderRadius: '10px',
+                    padding: '16px 20px',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: '14px',
+                    marginBottom: '24px',
+                    boxShadow: '0 0 25px rgba(255, 255, 0, 0.25)',
+                  }}
+                >
+                  <div>
+                    <span style={{ color: 'var(--konami-yellow)', fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '18px' }}>
+                      ⚡ 1-CLICK REEL AUTO-PILOT
+                    </span>
+                    <p style={{ margin: '4px 0 0', fontSize: '14px', color: '#c0d0ff' }}>
+                      Auto-crafts a fresh real-player prompt, writes viral captions, and synthesizes a high-definition AI video simultaneously.
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button
+                      className="matchday-button secondary"
+                      onClick={autoCraftPrompt}
+                      disabled={generating}
+                      style={{ padding: '10px 18px', fontSize: '14px' }}
+                    >
+                      🎲 Craft Real Player Prompt
+                    </button>
+                    <button
+                      className="matchday-button primary"
+                      onClick={autoPilotReel}
+                      disabled={generating}
+                      style={{ padding: '10px 22px', fontSize: '14px', fontWeight: 900 }}
+                    >
+                      {generating ? 'AUTO-PILOT RUNNING…' : '⚡ RUN 1-CLICK AUTO-PILOT ↗'}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="admin-grid-2">
@@ -402,11 +621,29 @@ export default function Admin() {
                     </div>
 
                     <div className="field">
-                      <label>PROMPT</label>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <label style={{ margin: 0 }}>VIDEO PROMPT (REAL PLAYER SCENARIO)</label>
+                        <button
+                          onClick={autoCraftPrompt}
+                          disabled={generating}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'var(--konami-yellow)',
+                            fontSize: '13px',
+                            cursor: 'pointer',
+                            fontWeight: 700,
+                            fontFamily: 'var(--font-display)',
+                          }}
+                        >
+                          🎲 Re-Roll Star Player ↻
+                        </button>
+                      </div>
                       <textarea
                         value={prompt}
                         onChange={(e) => setPrompt(e.target.value)}
-                        placeholder="Describe your video scene…"
+                        placeholder="Describe your video scene with Messi, Yamal, Ronaldo, Haaland…"
+                        style={{ minHeight: '110px' }}
                       />
                     </div>
 
@@ -446,13 +683,30 @@ export default function Admin() {
                       disabled={generating}
                       style={{ marginBottom: '14px' }}
                     >
-                      Generate Instagram Caption ↗
+                      Generate Viral Instagram Caption ↗
                     </button>
 
                     {copy && (
                       <div className="caption-result-box">
-                        <strong>Generated Instagram Copy:</strong>
-                        <p style={{ margin: '8px 0 0' }}>{copy}</p>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                          <strong>Instagram Reel Caption & Hashtags:</strong>
+                          <button
+                            onClick={copyCaption}
+                            style={{
+                              background: copyFeedback ? '#00ff66' : 'var(--konami-yellow)',
+                              color: '#000',
+                              border: 'none',
+                              borderRadius: '4px',
+                              padding: '4px 10px',
+                              fontSize: '12px',
+                              fontWeight: 800,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {copyFeedback ? 'COPIED! ✓' : 'COPY CAPTION 📋'}
+                          </button>
+                        </div>
+                        <p style={{ margin: 0 }}>{copy}</p>
                       </div>
                     )}
                   </div>
@@ -491,10 +745,46 @@ export default function Admin() {
                 {videoUrl && (
                   <div className="studio-video-box">
                     <video controls src={videoUrl} autoPlay loop />
-                    <div style={{ padding: '16px', background: '#081766' }}>
-                      <a className="matchday-button primary full" href={videoUrl} target="_blank" rel="noreferrer">
-                        OPEN / DOWNLOAD MP4 VIDEO ↗
-                      </a>
+                    <div style={{ padding: '20px', background: '#081766' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+                        <a className="matchday-button primary full" href={videoUrl} target="_blank" rel="noreferrer">
+                          ⬇️ DOWNLOAD MP4 VIDEO ↗
+                        </a>
+                        <button className="matchday-button secondary full" onClick={copyCaption}>
+                          {copyFeedback ? 'COPIED CAPTION! ✓' : '📋 COPY INSTAGRAM CAPTION'}
+                        </button>
+                      </div>
+
+                      {/* DIRECT INSTAGRAM PUBLISH ACCORDION */}
+                      <div style={{ background: 'rgba(0,0,0,0.4)', borderRadius: '8px', padding: '14px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                        <span style={{ color: '#fff', fontSize: '14px', fontWeight: 800, fontFamily: 'var(--font-display)' }}>
+                          📲 DIRECT META INSTAGRAM GRAPH API PUBLISHING
+                        </span>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '8px', marginTop: '10px' }}>
+                          <input
+                            placeholder="Instagram Business Account ID"
+                            value={igUserId}
+                            onChange={(e) => setIgUserId(e.target.value)}
+                            style={{ background: '#030a38', border: '1px solid rgba(255,255,255,0.2)', padding: '8px 12px', color: '#fff', borderRadius: '4px', fontSize: '13px' }}
+                          />
+                          <input
+                            placeholder="Instagram Access Token"
+                            type="password"
+                            value={igToken}
+                            onChange={(e) => setIgToken(e.target.value)}
+                            style={{ background: '#030a38', border: '1px solid rgba(255,255,255,0.2)', padding: '8px 12px', color: '#fff', borderRadius: '4px', fontSize: '13px' }}
+                          />
+                          <button
+                            className="matchday-button primary"
+                            onClick={publishToInstagram}
+                            disabled={igPublishing}
+                            style={{ padding: '8px 16px', fontSize: '13px' }}
+                          >
+                            {igPublishing ? 'PUBLISHING…' : 'POST TO REELS 🚀'}
+                          </button>
+                        </div>
+                        {igMessage && <p style={{ margin: '8px 0 0', fontSize: '13px', color: igMessage.startsWith('✅') ? '#00ff66' : 'var(--konami-yellow)', fontWeight: 700 }}>{igMessage}</p>}
+                      </div>
                     </div>
                   </div>
                 )}
