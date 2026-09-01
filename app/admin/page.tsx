@@ -62,12 +62,23 @@ export default function Admin() {
   const [igMessage, setIgMessage] = useState('');
   const [showCreds, setShowCreds] = useState(false);
 
-  // Auto-sync token and user ID from browser storage
+  // Auto-sync token, user ID, queue, and last generated video from browser storage
   useEffect(() => {
-    const savedToken = localStorage.getItem('efootball_ig_token');
-    const savedUserId = localStorage.getItem('efootball_ig_user_id');
-    if (savedToken) setIgToken(savedToken);
-    if (savedUserId) setIgUserId(savedUserId);
+    try {
+      const savedToken = localStorage.getItem('efootball_ig_token');
+      const savedUserId = localStorage.getItem('efootball_ig_user_id');
+      const savedVideo = localStorage.getItem('efootball_last_video_url');
+      const savedPrompt = localStorage.getItem('efootball_last_prompt');
+      const savedPlayer = localStorage.getItem('efootball_last_player');
+      const savedCopy = localStorage.getItem('efootball_last_copy');
+
+      if (savedToken) setIgToken(savedToken);
+      if (savedUserId) setIgUserId(savedUserId);
+      if (savedVideo) setVideoUrl(savedVideo);
+      if (savedPrompt) setPrompt(savedPrompt);
+      if (savedPlayer) setStarPlayerName(savedPlayer);
+      if (savedCopy) setCopy(savedCopy);
+    } catch {}
   }, []);
 
   const handleSetIgToken = (val: string) => {
@@ -938,26 +949,47 @@ export default function Admin() {
                 )}
 
                 {/* SCHEDULED REELS PUBLISHING QUEUE DECK */}
-                {queuedReels.length > 0 && (
-                  <div style={{ marginTop: '24px', background: 'rgba(3, 10, 56, 0.85)', border: '1px solid var(--konami-yellow)', borderRadius: '10px', padding: '18px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <div style={{ marginTop: '24px', background: 'rgba(3, 10, 56, 0.85)', border: '1px solid var(--konami-yellow)', borderRadius: '10px', padding: '18px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                    <div>
                       <span style={{ color: 'var(--konami-yellow)', fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '16px' }}>
-                        📅 SCHEDULED REELS PUBLISHING QUEUE ({queuedReels.length} Queued · 45m Spaced)
+                        📅 SCHEDULED REELS QUEUE & VAULT ({queuedReels.length} Reels Saved)
                       </span>
-                      <span style={{ fontSize: '12px', color: '#88a0ff', fontFamily: 'var(--font-mono)' }}>
-                        Meta Daily Limit: {queuedReels.filter(r => r.status === 'PUBLISHED').length}/25 Published
-                      </span>
+                      <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#88a0ff' }}>
+                        All generated videos and scheduled reels are permanently stored. Click &quot;▶ Load in Player&quot; to preview or publish anytime!
+                      </p>
                     </div>
+                    <span style={{ fontSize: '12px', color: '#fff', background: '#000be0', padding: '4px 10px', borderRadius: '4px', fontFamily: 'var(--font-mono)' }}>
+                      Meta Safe Limit: {queuedReels.filter(r => r.status === 'PUBLISHED').length}/25 Published
+                    </span>
+                  </div>
 
+                  {queuedReels.length > 0 ? (
                     <div style={{ display: 'grid', gap: '10px' }}>
                       {queuedReels.map((item) => (
-                        <div key={item.id} style={{ background: 'rgba(0,0,0,0.4)', borderRadius: '6px', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid rgba(255,255,255,0.1)' }}>
+                        <div key={item.id} style={{ background: 'rgba(0,0,0,0.4)', borderRadius: '6px', padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid rgba(255,255,255,0.1)' }}>
                           <div>
                             <strong style={{ color: '#fff', fontSize: '14px' }}>⭐ {item.playerTag} Reel</strong>
-                            <span style={{ marginLeft: '12px', fontSize: '12px', color: '#aaa' }}>Release: {new Date(item.scheduledTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                            <span style={{ marginLeft: '12px', fontSize: '11px', padding: '2px 8px', borderRadius: '10px', background: item.status === 'PUBLISHED' ? '#00cc66' : item.status === 'PUBLISHING' ? '#ffaa00' : '#081766', color: '#fff' }}>{item.status}</span>
+                            <span style={{ marginLeft: '12px', fontSize: '12px', color: '#aaa' }}>
+                              Release: {new Date(item.scheduledTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                            <span style={{ marginLeft: '12px', fontSize: '11px', padding: '2px 8px', borderRadius: '10px', background: item.status === 'PUBLISHED' ? '#00cc66' : item.status === 'PUBLISHING' ? '#ffaa00' : '#081766', color: '#fff' }}>
+                              {item.status}
+                            </span>
                           </div>
                           <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                              onClick={() => {
+                                setVideoUrl(item.videoUrl);
+                                setPrompt(item.caption);
+                                setCopy(item.caption);
+                                setStarPlayerName(item.playerTag);
+                                setMsg(`success: Loaded ${item.playerTag} video into the player!`);
+                              }}
+                              style={{ background: '#081766', color: '#fff', border: '1px solid #88a0ff', borderRadius: '4px', padding: '6px 12px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                            >
+                              ▶ Load in Player
+                            </button>
                             <button
                               onClick={() => publishQueuedItem(item.id)}
                               disabled={queueLoading || item.status === 'PUBLISHED'}
@@ -968,6 +1000,7 @@ export default function Admin() {
                             <button
                               onClick={() => deleteQueuedItem(item.id)}
                               style={{ background: 'rgba(255,0,0,0.2)', color: '#ff6666', border: '1px solid #ff4444', borderRadius: '4px', padding: '6px 10px', fontSize: '12px', cursor: 'pointer' }}
+                              title="Delete from Queue"
                             >
                               ✕
                             </button>
@@ -975,8 +1008,15 @@ export default function Admin() {
                         </div>
                       ))}
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '20px', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', color: '#88a0ff' }}>
+                      <p style={{ margin: '0 0 10px', fontSize: '13px' }}>Your queue is currently empty. Generate a video above or click Auto-Pilot to queue your first reel!</p>
+                      <button className="matchday-button primary" onClick={autoPilotReel} disabled={generating} style={{ padding: '8px 18px', fontSize: '12px' }}>
+                        ⚡ 1-CLICK AUTO-PILOT REEL (GENERATE & QUEUE)
+                      </button>
+                    </div>
+                  )}
+                </div>
 
                 {imageUrl && (
                   <div className="studio-img-box">
