@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://efootball-tournament-kwq4.onrender.com';
 
@@ -45,56 +46,56 @@ export default function Home() {
 
   return (
     <div className="matchday-shell">
-      {/* 1. TOP BLACK KONAMI BAR */}
-      <div className="konami-top-bar">
-        <div className="konami-top-container">
-          <a className="konami-corp-logo" href="https://www.konami.com/games/" target="_blank" rel="noreferrer">
-            <span>KONAMI</span>
+      {/* 1. TOP BLACK KONAMI HEADER (MATCHING SCREENSHOT) */}
+      <header className="konami-top-header">
+        <div className="konami-top-inner">
+          <a className="konami-red-logo" href="https://www.konami.com/games/" target="_blank" rel="noreferrer">
+            KONAMI
           </a>
-          <div className="lang-dropdown">
-            <span>English(UK)</span>
+          <div className="konami-lang-select">
+            <span>English(US)</span>
             <span style={{ fontSize: '10px' }}>▼</span>
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* 2. OFFICIAL BLUE HEADER STAGE WITH YELLOW LOGO */}
-      <header className="official-header-stage">
-        <a className="official-logo-lockup" href="/">
-          <div className="official-emblem-svg">
+      {/* 2. OFFICIAL BLUE HEADER STAGE (MATCHING SCREENSHOT) */}
+      <div className="konami-main-header">
+        <a className="konami-header-logo" href="/">
+          <div className="konami-header-emblem">
             <svg viewBox="0 0 100 100" fill="currentColor">
               <path d="M50 5C25.1 5 5 25.1 5 50s20.1 45 45 45 45-20.1 45-45S74.9 5 50 5zm0 14c17.1 0 31 13.9 31 31H19c0-17.1 13.9-31 31-31zm0 62c-17.1 0-31-13.9-31-31h62c0 17.1-13.9 31-31 31z"/>
             </svg>
           </div>
-          <span className="official-title-text">
+          <span className="konami-header-title">
             FOOTBALL<span>™</span>
           </span>
         </a>
 
-        {/* 3. CAPSULE / PILL NAVIGATION BAR (EXACT SCREENSHOT BUTTONS) */}
-        <nav className="konami-pills-nav" aria-label="Official Navigation">
-          <a className="nav-pill pill-home" href="/">
+        {/* 3. CAPSULE / PILL NAVIGATION (MATCHING SCREENSHOT) */}
+        <nav className="konami-nav-pills" aria-label="Official eFootball Navigation">
+          <a className="pill-btn home" href="/">
             HOME
           </a>
-          <a className="nav-pill" href="#overview">
+          <a className="pill-btn" href="#overview">
             Overview
           </a>
-          <a className="nav-pill pill-yellow" href="#tournaments">
+          <a className="pill-btn" href="#tournaments">
             Version Info
           </a>
-          <a className="nav-pill" href="#modes">
+          <a className="pill-btn" href="#modes">
             eSports
           </a>
-          <a className="nav-pill" href="#how">
+          <a className="pill-btn" href="#how">
             Licenses
           </a>
-          <a className="nav-pill" href="#leaderboard">
+          <a className="pill-btn" href="#leaderboard">
             Online Support
           </a>
-          <a className="nav-pill pill-pink" href="#tournaments">
+          <a className="pill-btn download" href="#tournaments">
             DOWNLOAD
           </a>
-          <a className="nav-pill pill-point" href="https://efootball-point.konami.net/" target="_blank" rel="noreferrer">
+          <a className="pill-btn point" href="https://efootball-point.konami.net/" target="_blank" rel="noreferrer">
             <svg viewBox="0 0 100 100">
               <circle cx="50" cy="50" r="45" fill="none" stroke="#e6007e" strokeWidth="8"/>
               <path d="M30 50h40M50 30v40" stroke="#e6007e" strokeWidth="8"/>
@@ -102,94 +103,58 @@ export default function Home() {
             <span>POINT</span>
           </a>
         </nav>
-      </header>
+      </div>
 
-      {/* 4. PROMOTIONAL YELLOW COINS BANNER (EXACT SCREENSHOT) */}
-      <section className="konami-promo-banner">
-        <a className="coins-banner-box" href="#tournaments">
-          <div className="coins-banner-left">
-            <div className="coin-icon">e</div>
-            <h3>Get More eFootball™ Coins When You Make a Purchase!</h3>
+      {/* 4. PROMOTIONAL YELLOW COINS BANNER (MATCHING SCREENSHOT) */}
+      <section className="konami-coins-banner">
+        <a className="coins-banner-inner" href="#tournaments">
+          <div className="coins-left">
+            <div className="coins-e-badge">e</div>
+            <h3 className="coins-title">Get More eFootball™ Coins When You Make a Purchase!</h3>
           </div>
-          <div className="coins-banner-right">
+          <div className="coins-right">
             <span>CHECK!</span>
-            <div className="check-arrow-circle">➔</div>
+            <div className="arrow-circle">➔</div>
           </div>
         </a>
       </section>
 
-      {/* 5. FULL-WIDTH YELLOW TITLE RIBBON (EXACT SCREENSHOT) */}
-      <div className="konami-yellow-ribbon">
-        <h2>eFootball™ v6.0.0 & Matchday Information</h2>
-      </div>
-
-      <main>
-        {/* 6. GEOMETRIC SHARD STAGE & FEATURE PANEL (EXACT SCREENSHOT) */}
-        <section className="shard-hero-section" id="overview">
-          <div className="konami-feature-panel">
-            <div className="feature-panel-header">
-              <span>New Features</span>
-              <span style={{ fontSize: '18px' }}>›</span>
-            </div>
-            <div className="feature-panel-list">
-              <a className="feature-list-item" href="#tournaments">
-                <div className="item-left">
-                  <span className="item-arrow">↳</span>
-                  <span>Custom Tournament</span>
-                </div>
-                <span className="item-chevron">›</span>
-              </a>
-              <a className="feature-list-item" href="#tournaments">
-                <div className="item-left">
-                  <span className="item-arrow">↳</span>
-                  <span>Game Plan Updates</span>
-                </div>
-                <span className="item-chevron">›</span>
-              </a>
-              <a className="feature-list-item" href="#modes">
-                <div className="item-left">
-                  <span className="item-arrow">↳</span>
-                  <span>New Playing Styles</span>
-                </div>
-                <span className="item-chevron">›</span>
-              </a>
-              <a className="feature-list-item" href="#modes">
-                <div className="item-left">
-                  <span className="item-arrow">↳</span>
-                  <span>New Team Playstyles</span>
-                </div>
-                <span className="item-chevron">›</span>
-              </a>
-              <a className="feature-list-item" href="#modes">
-                <div className="item-left">
-                  <span className="item-arrow">↳</span>
-                  <span>Link-up Play Updates</span>
-                </div>
-                <span className="item-chevron">›</span>
-              </a>
-              <a className="feature-list-item" href="#how">
-                <div className="item-left">
-                  <span className="item-arrow">↳</span>
-                  <span>Position Training Specifications</span>
-                </div>
-                <span className="item-chevron">›</span>
-              </a>
-            </div>
+      {/* 5. OFFICIAL FULL-WIDTH HERO ARTWORK (MESSI & YAMAL) */}
+      <section className="konami-hero-artwork-stage">
+        <Image
+          src="/images/konami_hero_banner.png"
+          alt="eFootball Official Key Visual - Lionel Messi and Lamine Yamal"
+          width={1440}
+          height={640}
+          priority
+          className="hero-artwork-img"
+          unoptimized
+        />
+        <div className="hero-overlay-content">
+          <div>
+            <span className="section-index">OFFICIAL COMMUNITY MATCHDAY CIRCUIT</span>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 'clamp(32px, 4vw, 54px)', margin: '6px 0 0', color: '#fff', textTransform: 'uppercase', textShadow: '0 4px 20px rgba(0,0,0,0.8)' }}>
+              Play the match. <span style={{ color: 'var(--konami-yellow)' }}>Own the moment.</span>
+            </h1>
           </div>
-        </section>
+          <a className="hero-cta-btn" href="#tournaments">
+            Enter Cup Lobbies <span>↗</span>
+          </a>
+        </div>
+      </section>
 
-        {/* 7. ACTIVE MATCHDAY CUPS (SPECIAL EDITIONS) */}
-        <section className="section" id="tournaments">
-          <div className="section-heading">
+      <main className="main-content-flow">
+        {/* 6. TOURNAMENT MATCHDAY CUPS (SPECIAL COMMUNITY EDITIONS) */}
+        <section className="section-container" id="tournaments">
+          <div className="section-title-wrap">
             <div>
-              <span className="section-index">01 / OFFICIAL MATCHDAY CUPS</span>
-              <h2>
-                Choose your
-                <br />
-                <em>Matchday.</em>
+              <span className="section-index">01 / ACTIVE MATCHDAY CUPS</span>
+              <h2 className="section-heading">
+                Choose your <br />
+                <em>Matchday Arena.</em>
               </h2>
             </div>
-            <p>
+            <p className="section-desc">
               Free competitive eFootball™ single-elimination cups. Lock your slot and receive your player passcode for the official Konami custom room.
             </p>
           </div>
@@ -231,18 +196,17 @@ export default function Home() {
           </div>
         </section>
 
-        {/* 8. GAME MODES PILLARS (AUTHENTIC OVERVIEW) */}
-        <section className="section" id="modes">
-          <div className="section-heading">
+        {/* 7. OFFICIAL OVERVIEW & GAME MODES */}
+        <section className="section-container" id="modes">
+          <div className="section-title-wrap">
             <div>
-              <span className="section-index">02 / GAME MODES</span>
-              <h2>
-                Let&apos;s Play
-                <br />
+              <span className="section-index">02 / OFFICIAL GAME MODES</span>
+              <h2 className="section-heading">
+                Let&apos;s Play <br />
                 <em>eFootball™.</em>
               </h2>
             </div>
-            <p>
+            <p className="section-desc">
               You have a ton of options on how to play, whether Authentic Team or building your dream team to compete in community circuits.
             </p>
           </div>
@@ -277,18 +241,16 @@ export default function Home() {
           </div>
         </section>
 
-        {/* 9. ROUTE SECTION */}
+        {/* 8. KNOCKOUT ROUTE */}
         <section className="route-section" id="how">
           <div className="route-intro">
             <span className="section-index">03 / THE ROUTE</span>
             <h2>
-              One lobby.
-              <br />
+              One lobby. <br />
               <em>Three rounds.</em>
             </h2>
-            <p>
-              Every cup follows a rapid 3-round knockout structure. Win your fixture, submit screenshot proof, and advance
-              toward the title.
+            <p className="section-desc">
+              Every cup follows a rapid 3-round knockout structure. Win your fixture, submit screenshot proof, and advance toward the title.
             </p>
           </div>
 
@@ -313,18 +275,17 @@ export default function Home() {
           </div>
         </section>
 
-        {/* 10. RANKINGS TABLE */}
-        <section className="section" id="leaderboard">
-          <div className="section-heading">
+        {/* 9. STANDINGS TABLE */}
+        <section className="section-container" id="leaderboard" style={{ marginTop: '70px' }}>
+          <div className="section-title-wrap">
             <div>
               <span className="section-index">04 / COMMUNITY STANDINGS</span>
-              <h2>
-                Play for
-                <br />
+              <h2 className="section-heading">
+                Play for <br />
                 <em>the table.</em>
               </h2>
             </div>
-            <p>
+            <p className="section-desc">
               Confirmed match results earn points, match wins, and a spot at the top of the official rankings table.
             </p>
           </div>
@@ -332,11 +293,11 @@ export default function Home() {
         </section>
       </main>
 
-      {/* 11. OFFICIAL FOOTER */}
+      {/* 10. OFFICIAL FOOTER LOCKUP */}
       <footer className="matchday-footer">
         <div className="footer-top">
           <div className="footer-brand">
-            <span className="konami-footer-logo">KONAMI</span>
+            <span className="konami-red-logo">KONAMI</span>
             <span className="footer-tagline">
               eFootball <b>2026</b> Community Circuit
             </span>
@@ -409,4 +370,5 @@ function Leaderboard() {
     </div>
   );
 }
+
 
