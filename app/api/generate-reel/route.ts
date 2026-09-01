@@ -69,6 +69,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       status: status || 'RUNNING',
       taskId,
+      submitTime: queryData?.output?.submit_time,
+      scheduledTime: queryData?.output?.scheduled_time,
     });
   } catch (error: any) {
     return NextResponse.json({ error: error?.message || 'Failed to query task status' }, { status: 502 });

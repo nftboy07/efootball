@@ -126,9 +126,10 @@ export default function Admin() {
 
     const isVideo = provider.startsWith('wan-video');
     const model = provider === 'wan-video-plus' ? 'wan2.1-t2v-plus' : 'wan2.1-t2v-turbo';
-    const estimated = model === 'wan2.1-t2v-plus' ? 90 : 60;
+    const estimated = model === 'wan2.1-t2v-plus' ? 180 : 120; // 2 to 3 minutes for cloud synthesis
 
     let timerInterval: any = null;
+    let cloudStatus = 'PENDING';
 
     if (isVideo) {
       let seconds = 0;
@@ -136,21 +137,27 @@ export default function Admin() {
         active: true,
         elapsed: 0,
         estimated,
-        pct: 5,
-        phase: '🚀 Initializing Alibaba Wan 2.1 GPU cluster…',
+        pct: 4,
+        phase: '⏳ Connecting to Alibaba Model Studio GPU cluster…',
       });
 
       timerInterval = setInterval(() => {
         seconds += 1;
-        const currentPct = Math.min(97, Math.floor((seconds / estimated) * 100));
-        let currentPhase = '🚀 Allocating GPU node & analyzing prompt…';
+        const currentPct =
+          seconds <= estimated
+            ? Math.min(95, Math.floor((seconds / estimated) * 95))
+            : Math.min(99, 95 + Math.floor(((seconds - estimated) / 40) * 4));
 
-        if (seconds >= 10 && seconds < 30) {
-          currentPhase = '🎬 Synthesizing 3D camera pan & stadium spotlight effects…';
-        } else if (seconds >= 30 && seconds < 50) {
-          currentPhase = '⚽ Rendering high-fps football gameplay & motion blur…';
-        } else if (seconds >= 50) {
-          currentPhase = '📦 Finalizing video stream & encoding MP4…';
+        let currentPhase = '⏳ In Alibaba GPU Queue (waiting for available compute worker)…';
+
+        if (cloudStatus === 'RUNNING' || seconds >= 30) {
+          if (seconds < 60) {
+            currentPhase = '🎬 Active GPU Synthesis: Analyzing prompt & 3D camera pan…';
+          } else if (seconds < 100) {
+            currentPhase = '⚽ Active GPU Synthesis: Rendering football motion blur & lighting…';
+          } else {
+            currentPhase = '📦 Active GPU Synthesis: Finalizing frame encoding & MP4 streaming…';
+          }
         }
 
         setVideoProgress((prev) => ({
@@ -179,17 +186,21 @@ export default function Admin() {
         const taskId = submitData.taskId;
         setVideoProgress((prev) => ({ ...prev, taskId }));
 
-        // 2. Poll every 3 seconds until completed
+        // 2. Poll every 3.5 seconds until completed (up to 5 minutes)
         let finalUrl = '';
-        const maxPollTime = Date.now() + 180000;
+        const maxPollTime = Date.now() + 300000;
 
         while (Date.now() < maxPollTime) {
           await new Promise((res) => setTimeout(res, 3500));
           const pollRes = await fetch(`/api/generate-reel?taskId=${taskId}`);
           const pollData = await pollRes.json();
 
-          if (pollData.status === 'SUCCEEDED' && pollData.videoUrl) {
-            finalUrl = pollData.videoUrl;
+          if (pollData.status) {
+            cloudStatus = pollData.status;
+          }
+
+          if (pollData.status === 'SUCCEEDED' && (pollData.videoUrl || pollData.video?.url)) {
+            finalUrl = pollData.videoUrl || pollData.video?.url;
             break;
           } else if (pollData.status === 'FAILED') {
             throw new Error(pollData.error || 'Alibaba Wan 2.1 video generation failed');
@@ -199,7 +210,7 @@ export default function Admin() {
         if (timerInterval) clearInterval(timerInterval);
 
         if (!finalUrl) {
-          throw new Error('Video generation timed out. Please try again.');
+          throw new Error('Video generation took longer than expected. Please check again in a few moments.');
         }
 
         setVideoProgress((prev) => ({
@@ -224,7 +235,7 @@ export default function Admin() {
       }
     } catch (e: any) {
       if (timerInterval) clearInterval(timerInterval);
-      setVideoProgress({ active: false, elapsed: 0, estimated: 60, pct: 0, phase: '' });
+      setVideoProgress({ active: false, elapsed: 0, estimated: 120, pct: 0, phase: '' });
       setMsg('error: ' + e.message);
     } finally {
       setGenerating(false);
