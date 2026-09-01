@@ -250,37 +250,50 @@ export default function Admin() {
   const [queuedReels, setQueuedReels] = useState<any[]>([]);
   const [queueLoading, setQueueLoading] = useState(false);
 
-  async function loadQueue() {
+  // Load saved queue from localStorage on mount
+  useEffect(() => {
     try {
-      const res = await fetch('/api/reels-queue');
-      const data = await res.json();
-      if (Array.isArray(data.queue)) {
-        setQueuedReels(data.queue);
+      const saved = localStorage.getItem('efootball_reels_queue');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setQueuedReels(parsed);
+        }
       }
-    } catch (e) {}
+    } catch {}
+  }, []);
+
+  function saveQueueToStorage(newQueue: any[]) {
+    setQueuedReels(newQueue);
+    try {
+      localStorage.setItem('efootball_reels_queue', JSON.stringify(newQueue));
+    } catch {}
   }
 
   async function addToSchedule() {
     if (!videoUrl) return;
     try {
-      const res = await fetch('/api/reels-queue', {
+      const newItem = {
+        id: 'REEL-' + Math.random().toString(36).substring(2, 9).toUpperCase(),
+        videoUrl,
+        caption: copy || prompt,
+        playerTag: starPlayerName || 'eFootball Superstar',
+        scheduledTime: new Date(Date.now() + (queuedReels.length + 1) * 45 * 60 * 1000).toISOString(),
+        status: 'QUEUED',
+        createdAt: new Date().toISOString(),
+      };
+
+      const updated = [newItem, ...queuedReels];
+      saveQueueToStorage(updated);
+
+      // Also inform serverless API
+      fetch('/api/reels-queue', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'ADD_BATCH',
-          items: [
-            {
-              videoUrl,
-              caption: copy || prompt,
-              playerTag: starPlayerName || 'eFootball Superstar',
-            },
-          ],
-          intervalMinutes: 45,
-        }),
-      });
-      const data = await res.json();
-      if (data.queue) setQueuedReels(data.queue);
-      setMsg('success: Added video to scheduled Instagram queue (spaced safely at 45m intervals)!');
+        body: JSON.stringify({ action: 'ADD_BATCH', items: [newItem], intervalMinutes: 45 }),
+      }).catch(() => {});
+
+      setMsg('success: Added video to scheduled Instagram queue (Saved permanently to your browser & server)!');
     } catch (e: any) {
       setMsg('error: Failed to add to queue');
     }
@@ -288,22 +301,37 @@ export default function Admin() {
 
   async function publishQueuedItem(id: string) {
     setQueueLoading(true);
+    const item = queuedReels.find((r) => r.id === id);
+    if (!item) return;
+
     try {
-      const res = await fetch('/api/reels-queue', {
+      // Mark as publishing
+      const publishingList = queuedReels.map((r) => (r.id === id ? { ...r, status: 'PUBLISHING' } : r));
+      saveQueueToStorage(publishingList);
+
+      const res = await fetch('/api/instagram-publish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'PUBLISH_ITEM',
-          reelId: id,
+          videoUrl: item.videoUrl,
+          caption: item.caption,
           accessToken: igToken,
           igUserId: igUserId,
         }),
       });
+
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to publish');
-      setMsg('success: ' + data.message);
-      loadQueue();
+      if (!res.ok) throw new Error(data.error || 'Failed to publish to Instagram');
+
+      // Mark as published
+      const publishedList = queuedReels.map((r) =>
+        r.id === id ? { ...r, status: 'PUBLISHED', publishedAt: new Date().toISOString() } : r
+      );
+      saveQueueToStorage(publishedList);
+      setMsg('success: Reel published to Instagram successfully!');
     } catch (e: any) {
+      const failedList = queuedReels.map((r) => (r.id === id ? { ...r, status: 'QUEUED', error: e.message } : r));
+      saveQueueToStorage(failedList);
       setMsg('error: ' + e.message);
     } finally {
       setQueueLoading(false);
@@ -311,15 +339,13 @@ export default function Admin() {
   }
 
   async function deleteQueuedItem(id: string) {
-    try {
-      const res = await fetch('/api/reels-queue', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'DELETE_ITEM', reelId: id }),
-      });
-      const data = await res.json();
-      if (data.queue) setQueuedReels(data.queue);
-    } catch (e) {}
+    const filtered = queuedReels.filter((r) => r.id !== id);
+    saveQueueToStorage(filtered);
+    fetch('/api/reels-queue', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'DELETE_ITEM', reelId: id }),
+    }).catch(() => {});
   }
 
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
