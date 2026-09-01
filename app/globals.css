@@ -454,6 +454,11 @@ body {
   gap: 8px;
   align-items: center;
   color: #fff;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .cup-status i {
@@ -538,12 +543,12 @@ body {
   letter-spacing: 0.08em;
   cursor: pointer;
   transition: all 0.25s ease;
+  border: none;
 }
 
 .matchday-button.primary {
   background: var(--konami-yellow);
   color: #000000;
-  border: none;
   box-shadow: 0 4px 20px var(--konami-yellow-glow);
 }
 
@@ -552,6 +557,16 @@ body {
   color: #000;
   transform: translateY(-2px);
   box-shadow: 0 8px 30px rgba(255, 255, 255, 0.7);
+}
+
+.matchday-button.secondary {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.matchday-button.secondary:hover {
+  background: rgba(255, 255, 255, 0.22);
 }
 
 .full {
@@ -762,7 +777,317 @@ body {
   color: var(--text-secondary);
 }
 
-/* 10. OFFICIAL FOOTER */
+/* 10. TOURNAMENT DETAILS PAGE (FIXING STYLING) */
+.tournament-hero {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: 50px;
+  align-items: center;
+  padding: 40px 20px 30px;
+  position: relative;
+}
+
+.tournament-hero h1 {
+  font-family: var(--font-display);
+  font-size: clamp(38px, 5.5vw, 68px);
+  line-height: 0.92;
+  margin: 8px 0 14px;
+  font-style: italic;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.tournament-hero h1 em {
+  font-style: italic;
+  color: var(--konami-yellow);
+  text-shadow: 0 0 20px var(--konami-yellow-glow);
+}
+
+.tournament-hero p {
+  color: var(--text-secondary);
+  font-size: 16px;
+  margin: 0;
+}
+
+.tournament-score {
+  background: var(--bg-card);
+  border: 2px solid rgba(255, 255, 0, 0.4);
+  border-radius: 12px;
+  padding: 24px 28px;
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tournament-score span {
+  color: var(--text-secondary);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+}
+
+.tournament-score strong {
+  color: var(--konami-yellow);
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 64px;
+  line-height: 0.85;
+  text-shadow: 0 0 20px var(--konami-yellow-glow);
+}
+
+.tournament-score strong small {
+  font-size: 24px;
+  color: var(--text-secondary);
+  margin-left: 4px;
+}
+
+.tournament-score b {
+  color: var(--konami-yellow);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+}
+
+.tournament-content {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 20px 20px 80px;
+}
+
+.tournament-route {
+  margin-bottom: 36px;
+}
+
+.code-panel {
+  background: linear-gradient(135deg, rgba(255, 255, 0, 0.15) 0%, rgba(8, 23, 102, 0.9) 100%);
+  border: 2px solid var(--konami-yellow);
+  border-radius: 12px;
+  padding: 28px 32px;
+  margin-bottom: 40px;
+  box-shadow: 0 0 30px rgba(255, 255, 0, 0.25);
+}
+
+.code-panel strong {
+  display: block;
+  font-family: var(--font-mono);
+  font-weight: 900;
+  font-size: clamp(36px, 5vw, 64px);
+  color: #ffffff;
+  letter-spacing: 0.08em;
+  margin: 10px 0 12px;
+  text-shadow: 0 0 20px var(--konami-yellow-glow);
+}
+
+.code-panel p {
+  color: var(--text-secondary);
+  font-size: 15px;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.code-copy-btn {
+  background: var(--konami-yellow);
+  color: #000000;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 6px 16px;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  margin-left: 12px;
+  transition: all 0.2s ease;
+}
+
+.code-copy-btn:hover {
+  background: #ffffff;
+}
+
+.tournament-columns {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 36px;
+  margin-bottom: 50px;
+}
+
+.roster {
+  background: var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-top: 18px;
+}
+
+.roster-row {
+  display: grid;
+  grid-template-columns: 50px 1fr 1fr;
+  gap: 16px;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  align-items: center;
+  font-family: var(--font-display);
+}
+
+.roster-row:last-child {
+  border-bottom: none;
+}
+
+.roster-row b {
+  color: var(--konami-yellow);
+  font-family: var(--font-mono);
+  font-size: 15px;
+}
+
+.roster-row strong {
+  font-size: 18px;
+  color: #fff;
+  text-transform: uppercase;
+}
+
+.roster-row span {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.join-panel {
+  background: var(--bg-card);
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  padding: 30px;
+  height: max-content;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+.join-panel h2 {
+  font-family: var(--font-display);
+  font-size: 42px;
+  line-height: 0.9;
+  margin: 10px 0 22px;
+  font-style: italic;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.join-panel h2 em {
+  color: var(--konami-yellow);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.field label {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  color: var(--konami-yellow);
+  text-transform: uppercase;
+}
+
+.field input {
+  width: 100%;
+  background: #030a38;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  padding: 12px 16px;
+  color: #ffffff;
+  font-size: 15px;
+  font-family: var(--font-body);
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.field input:focus {
+  border-color: var(--konami-yellow);
+  box-shadow: 0 0 15px var(--konami-yellow-glow);
+}
+
+.status-note {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 20px;
+  color: var(--text-secondary);
+  font-size: 15px;
+}
+
+.matches-section {
+  margin-top: 40px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  padding-top: 40px;
+}
+
+.match-list {
+  background: var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-top: 20px;
+}
+
+.match-row {
+  display: grid;
+  grid-template-columns: 100px 1fr 40px 1fr 40px 140px;
+  gap: 16px;
+  align-items: center;
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-family: var(--font-display);
+}
+
+.match-row:last-child {
+  border-bottom: none;
+}
+
+.match-row span {
+  color: var(--konami-yellow);
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.match-row strong {
+  font-size: 18px;
+  color: #fff;
+  text-transform: uppercase;
+}
+
+.match-row b {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--konami-yellow);
+}
+
+.match-row small {
+  color: var(--text-muted);
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.score-modal {
+  margin-top: 24px;
+  padding: 26px;
+  background: #091a6e;
+  border: 2px solid var(--konami-yellow);
+  border-radius: 12px;
+  box-shadow: 0 0 30px var(--konami-yellow-glow);
+}
+
+/* 11. OFFICIAL FOOTER */
 .matchday-footer {
   border-top: 1px solid rgba(255, 255, 255, 0.15);
   background: #000000;
@@ -838,6 +1163,13 @@ body {
 
 /* RESPONSIVENESS */
 @media (max-width: 990px) {
+  .tournament-hero {
+    grid-template-columns: 1fr;
+    gap: 30px;
+  }
+  .tournament-columns {
+    grid-template-columns: 1fr;
+  }
   .modes-grid {
     grid-template-columns: 1fr;
   }
@@ -853,16 +1185,15 @@ body {
     height: 24px;
     margin: 0 auto;
   }
-  .hero-overlay-content {
-    flex-direction: column;
-    align-items: flex-start;
-  }
 }
 
 @media (max-width: 600px) {
   .coins-banner-inner {
     flex-direction: column;
     align-items: flex-start;
+  }
+  .match-row {
+    grid-template-columns: 60px 1fr 30px;
   }
   .ranking-head, .ranking-row {
     grid-template-columns: 45px 1fr 45px 45px 50px;
