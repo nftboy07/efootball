@@ -83,13 +83,13 @@ export default function Home() {
       </header>
 
       <main>
-        {/* HERO SECTION WITH KONAMI BOKEH ORBS (MATCHING SCREENSHOT) */}
+        {/* HERO SECTION WITH KONAMI BOKEH ORBS (YELLOW & BLUE COMBO) */}
         <section className="matchday-hero">
           {/* FLOATING KONAMI BOKEH GLOW ORBS */}
-          <div className="konami-orb orb-cyan-lg" />
-          <div className="konami-orb orb-pink-md" />
-          <div className="konami-orb orb-cyan-sm" />
-          <div className="konami-orb orb-magenta-sm" />
+          <div className="konami-orb orb-blue-lg" />
+          <div className="konami-orb orb-yellow-md" />
+          <div className="konami-orb orb-blue-sm" />
+          <div className="konami-orb orb-yellow-sm" />
           <div className="konami-orb orb-center-glow" />
 
           <div className="hero-copy">

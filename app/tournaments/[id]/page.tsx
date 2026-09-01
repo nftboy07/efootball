@@ -216,9 +216,9 @@ export default function Tournament() {
       <main>
         {/* HERO */}
         <section className="tournament-hero">
-          {/* KONAMI BOKEH ORBS */}
-          <div className="konami-orb orb-cyan-lg" style={{ opacity: 0.6 }} />
-          <div className="konami-orb orb-pink-md" style={{ opacity: 0.6 }} />
+          {/* KONAMI BOKEH ORBS (YELLOW & BLUE COMBO) */}
+          <div className="konami-orb orb-blue-lg" style={{ opacity: 0.6 }} />
+          <div className="konami-orb orb-yellow-md" style={{ opacity: 0.6 }} />
 
           <div>
             <span className="section-index">COMMUNITY CUP / {t.id}</span>
