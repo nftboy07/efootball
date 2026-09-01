@@ -51,9 +51,13 @@ class RequestSafetyMiddleware(BaseHTTPMiddleware):
         response.headers['Referrer-Policy']='strict-origin-when-cross-origin'
         return response
 app.add_middleware(RequestSafetyMiddleware)
-origins={'https://efootball2026.online','https://www.efootball2026.online'}
-origins.update(x.strip() for x in os.getenv('CORS_ORIGINS','').split(',') if x.strip())
-app.add_middleware(CORSMiddleware,allow_origins=sorted(origins),allow_credentials=False,allow_methods=['GET','POST','OPTIONS'],allow_headers=['Content-Type','X-Player-Token','X-Admin-Key'])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=['*'],
+    allow_credentials=False,
+    allow_methods=['*'],
+    allow_headers=['*'],
+)
 
 class TournamentCreate(BaseModel): name:str=Field(min_length=2,max_length=100)
 class PlayerCreate(BaseModel): display_name:str=Field(min_length=2,max_length=40); efootball_username:str=Field(min_length=1,max_length=60)
