@@ -60,6 +60,7 @@ export default function Admin() {
   const [igUserId, setIgUserId] = useState('');
   const [igPublishing, setIgPublishing] = useState(false);
   const [igMessage, setIgMessage] = useState('');
+  const [showCreds, setShowCreds] = useState(false);
 
   // Auto-sync token and user ID from browser storage
   useEffect(() => {
@@ -881,39 +882,56 @@ export default function Admin() {
                       </div>
 
                       {/* DIRECT INSTAGRAM PUBLISH ACCORDION */}
-                      <div style={{ background: 'rgba(0,0,0,0.4)', borderRadius: '8px', padding: '14px', border: '1px solid rgba(255,255,255,0.1)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ color: '#fff', fontSize: '14px', fontWeight: 800, fontFamily: 'var(--font-display)' }}>
-                            📲 DIRECT META INSTAGRAM GRAPH API PUBLISHING
-                          </span>
-                          <span style={{ background: '#00cc66', color: '#000', fontSize: '11px', fontWeight: 900, padding: '2px 8px', borderRadius: '4px' }}>
-                            META TOKEN LOADED ✓
-                          </span>
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '8px', marginTop: '10px' }}>
-                          <input
-                            placeholder="Instagram Business Account ID (e.g. 17841...)"
-                            value={igUserId}
-                            onChange={(e) => handleSetIgUserId(e.target.value)}
-                            style={{ background: '#030a38', border: '1px solid rgba(255,255,255,0.2)', padding: '8px 12px', color: '#fff', borderRadius: '4px', fontSize: '13px' }}
-                          />
-                          <input
-                            placeholder="Instagram Access Token"
-                            type="password"
-                            value={igToken}
-                            onChange={(e) => handleSetIgToken(e.target.value)}
-                            style={{ background: '#030a38', border: '1px solid rgba(255,255,255,0.2)', padding: '8px 12px', color: '#fff', borderRadius: '4px', fontSize: '13px' }}
-                          />
+                      <div style={{ background: 'rgba(0,0,0,0.4)', borderRadius: '8px', padding: '16px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                          <div>
+                            <span style={{ color: '#fff', fontSize: '15px', fontWeight: 800, fontFamily: 'var(--font-display)' }}>
+                              📲 DIRECT INSTAGRAM REELS PUBLISHER
+                            </span>
+                            <span style={{ marginLeft: '10px', background: '#00cc66', color: '#000', fontSize: '11px', fontWeight: 900, padding: '2px 8px', borderRadius: '4px' }}>
+                              TOKEN AUTO-LOADED ✓
+                            </span>
+                          </div>
                           <button
-                            className="matchday-button primary"
-                            onClick={publishToInstagram}
-                            disabled={igPublishing}
-                            style={{ padding: '8px 16px', fontSize: '13px' }}
+                            onClick={() => setShowCreds(!showCreds)}
+                            style={{ background: 'transparent', border: 'none', color: '#88a0ff', fontSize: '12px', cursor: 'pointer', textDecoration: 'underline' }}
                           >
-                            {igPublishing ? 'PUBLISHING…' : 'POST TO REELS 🚀'}
+                            {showCreds ? 'Hide Credentials ▲' : '⚙️ Custom Credentials ▼'}
                           </button>
                         </div>
-                        {igMessage && <p style={{ margin: '8px 0 0', fontSize: '13px', color: igMessage.startsWith('✅') ? '#00ff66' : 'var(--konami-yellow)', fontWeight: 700 }}>{igMessage}</p>}
+
+                        {showCreds && (
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px', padding: '10px', background: 'rgba(0,0,0,0.3)', borderRadius: '6px' }}>
+                            <input
+                              placeholder="Instagram Account ID (Optional - Auto Detected)"
+                              value={igUserId}
+                              onChange={(e) => handleSetIgUserId(e.target.value)}
+                              style={{ background: '#030a38', border: '1px solid rgba(255,255,255,0.2)', padding: '8px 12px', color: '#fff', borderRadius: '4px', fontSize: '13px' }}
+                            />
+                            <input
+                              placeholder="Custom Access Token"
+                              type="password"
+                              value={igToken}
+                              onChange={(e) => handleSetIgToken(e.target.value)}
+                              style={{ background: '#030a38', border: '1px solid rgba(255,255,255,0.2)', padding: '8px 12px', color: '#fff', borderRadius: '4px', fontSize: '13px' }}
+                            />
+                          </div>
+                        )}
+
+                        <button
+                          className="matchday-button primary full"
+                          onClick={publishToInstagram}
+                          disabled={igPublishing}
+                          style={{ padding: '12px', fontSize: '14px', fontWeight: 900 }}
+                        >
+                          {igPublishing ? 'PUBLISHING TO INSTAGRAM…' : '🚀 POST TO INSTAGRAM REELS (AUTO-CONNECTED)'}
+                        </button>
+
+                        {igMessage && (
+                          <p style={{ margin: '10px 0 0', fontSize: '13px', color: igMessage.startsWith('✅') ? '#00ff66' : 'var(--konami-yellow)', fontWeight: 700 }}>
+                            {igMessage}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>

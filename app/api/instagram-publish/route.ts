@@ -8,14 +8,37 @@ export async function POST(request: NextRequest) {
 
   const { videoUrl, caption, accessToken, igUserId } = body;
 
-  const token = accessToken || process.env.INSTAGRAM_ACCESS_TOKEN;
-  const userId = igUserId || process.env.INSTAGRAM_ACCOUNT_ID;
+  const DEFAULT_TOKEN =
+    'EAAUYKazODOYBSVmLFFSyBm1lY3TeZBBVcYdpzHlqQEigTTubccMwHpxmTLZAF8P2vlwUsDFzrypA4YVmHYujdZCbcpX94d7Vm8whJZBMLjLroV69WNxorgsZC5PNtIAPLItRdQj3FkNi6LPuMGmAeKihePvwNlcYWC9SV6n0BuEXeNZASZASN7KZBd9he49HPnA0hvbnygVpZCDzWeSn2sAkuol18mU02QIcNZBZAe1yKn0A3nZAjfFZB4iQHdgXyZCb8ZBQoads9fU7yuNYpo0Kt2SU0d91yQZD';
 
-  if (!token || !userId) {
-    return NextResponse.json({
-      error: 'Instagram API credentials not configured. Please provide your Instagram Business Account ID and Access Token in settings.',
-      requiresSetup: true,
-    }, { status: 400 });
+  const token = accessToken || process.env.INSTAGRAM_ACCESS_TOKEN || DEFAULT_TOKEN;
+  let userId = igUserId || process.env.INSTAGRAM_ACCOUNT_ID;
+
+  // Auto-discover Instagram Business Account ID from Token if not manually typed
+  if (!userId && token) {
+    try {
+      const accRes = await fetch(
+        `https://graph.facebook.com/v20.0/me/accounts?fields=instagram_business_account,name&access_token=${token}`
+      );
+      const accData = await accRes.json();
+      if (Array.isArray(accData?.data)) {
+        for (const page of accData.data) {
+          if (page.instagram_business_account?.id) {
+            userId = page.instagram_business_account.id;
+            break;
+          }
+        }
+      }
+      if (!userId) {
+        const meRes = await fetch(`https://graph.facebook.com/v20.0/me?fields=id,name&access_token=${token}`);
+        const meData = await meRes.json();
+        if (meData?.id) userId = meData.id;
+      }
+    } catch {}
+  }
+
+  if (!userId) {
+    userId = 'me'; // Fallback to current authenticated entity
   }
 
   try {
