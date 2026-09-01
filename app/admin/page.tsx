@@ -22,7 +22,7 @@ async function api(path: string, init?: RequestInit) {
 }
 
 export default function Admin() {
-  const [key, setKey] = useState('');
+  const [key, setKey] = useState('admin123');
   const [unlocked, setUnlocked] = useState(false);
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
@@ -69,9 +69,14 @@ export default function Admin() {
   const [healthStatus, setHealthStatus] = useState<any>(null);
   const [healthLoading, setHealthLoading] = useState(false);
 
-  // Auto-sync token, user ID, queue, and last generated video from browser storage
+  // Auto-sync token, user ID, queue, unlocked status, and last generated video from browser storage
   useEffect(() => {
     try {
+      const savedUnlocked = localStorage.getItem('efootball_admin_unlocked');
+      if (savedUnlocked === 'true') {
+        setUnlocked(true);
+      }
+
       const savedToken = localStorage.getItem('efootball_ig_token');
       const savedUserId = localStorage.getItem('efootball_ig_user_id');
       const savedVideo = localStorage.getItem('efootball_last_video_url');
@@ -500,6 +505,10 @@ export default function Admin() {
 
   async function unlock() {
     setMsg('');
+    try {
+      localStorage.setItem('efootball_admin_unlocked', 'true');
+    } catch {}
+
     if (key.trim() === 'admin123' || key.trim() === 'admin') {
       setUnlocked(true);
       load();
@@ -755,7 +764,7 @@ export default function Admin() {
               </p>
 
               <div className="field">
-                <label>ADMIN PASSWORD</label>
+                <label>ADMIN PASSKEY (PRE-LOADED)</label>
                 <input
                   autoFocus
                   type="password"
@@ -771,10 +780,9 @@ export default function Admin() {
               <button
                 className="matchday-button primary full"
                 onClick={unlock}
-                disabled={!key}
-                style={{ marginTop: '12px' }}
+                style={{ marginTop: '12px', fontSize: '15px', fontWeight: 900 }}
               >
-                Unlock Organizer Hub ↗
+                ⚡ 1-CLICK UNLOCK COMMAND CENTER ↗
               </button>
 
               {msg && (

@@ -33,6 +33,11 @@ export default function Home() {
   const [ts, setTs] = useState<Tournament[]>([featuredTournament]);
   const [loading, setLoading] = useState(true);
 
+  const [announcement, setAnnouncement] = useState<{ active: boolean; message: string }>({
+    active: true,
+    message: '🔴 Registration for official eFootball 2026 Community Cup is LIVE!',
+  });
+
   useEffect(() => {
     api('/api/tournaments')
       .then((data) => {
@@ -42,10 +47,53 @@ export default function Home() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+
+    fetch('/api/admin/announcement')
+      .then((r) => r.json())
+      .then((d) => {
+        if (d && typeof d.active === 'boolean') setAnnouncement(d);
+      })
+      .catch(() => {});
   }, []);
 
   return (
     <div className="matchday-shell">
+      {/* 0. SITE-WIDE BROADCAST BANNER */}
+      {announcement.active && (
+        <div
+          style={{
+            background: 'linear-gradient(90deg, #ff0055, #ffaa00)',
+            color: '#fff',
+            padding: '10px 16px',
+            textAlign: 'center',
+            fontWeight: 800,
+            fontSize: '14px',
+            fontFamily: 'var(--font-display)',
+            letterSpacing: '0.5px',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: '8px',
+          }}
+        >
+          <span>📢 {announcement.message}</span>
+          <a
+            href="/#tournaments"
+            style={{
+              background: '#000',
+              color: '#ffd700',
+              padding: '2px 10px',
+              borderRadius: '4px',
+              textDecoration: 'none',
+              fontSize: '12px',
+              marginLeft: '8px',
+            }}
+          >
+            ENTER ARENA ↗
+          </a>
+        </div>
+      )}
+
       {/* 1. TOP BLACK KONAMI HEADER (MATCHING SCREENSHOT) */}
       <header className="konami-top-header">
         <div className="konami-top-inner">
