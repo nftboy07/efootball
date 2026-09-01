@@ -2,7 +2,7 @@ import os
 import time
 import uuid
 import hashlib
-from fastapi import FastAPI, HTTPException, Header, Request
+from fastapi import FastAPI, HTTPException, Header, Request, UploadFile, File
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,12 +10,38 @@ from pydantic import BaseModel, Field, field_validator
 from . import db
 
 ENV=os.getenv('ENVIRONMENT','development').lower()
+SENTRY_DSN=os.getenv('SENTRY_DSN','').strip()
+if SENTRY_DSN:
+    try:
+        import sentry_sdk
+        sentry_sdk.init(dsn=SENTRY_DSN, traces_sample_rate=1.0, environment=ENV)
+    except Exception as e:
+        print(f'Sentry initialization warning: {e}')
+
+REDIS_URL=os.getenv('REDIS_URL','').strip()
+redis_client=None
+if REDIS_URL:
+    try:
+        import redis
+        redis_client=redis.from_url(REDIS_URL, decode_responses=True, socket_timeout=3)
+    except Exception as e:
+        print(f'Redis connection warning: {e}')
+        redis_client=None
+
+CLOUDINARY_URL=os.getenv('CLOUDINARY_URL','').strip()
+if CLOUDINARY_URL:
+    try:
+        import cloudinary
+        cloudinary.config(cloudinary_url=CLOUDINARY_URL)
+    except Exception as e:
+        print(f'Cloudinary configuration warning: {e}')
+
 app=FastAPI(title='eFootball Community Tournament Platform',version='1.1.0')
 class RequestSafetyMiddleware(BaseHTTPMiddleware):
     async def dispatch(self,request,call_next):
         request_id=request.headers.get('X-Request-ID') or str(uuid.uuid4())
         content_length=request.headers.get('content-length')
-        if content_length and content_length.isdigit() and int(content_length)>1024*1024:
+        if content_length and content_length.isdigit() and int(content_length)>10*1024*1024:
             response=JSONResponse({'detail':'Request body too large'},status_code=413)
         else:
             response=await call_next(request)
@@ -53,11 +79,24 @@ def startup():
 
 admin_failures={}
 def admin(k):
-    fingerprint=hashlib.sha256((k or 'missing').encode()).hexdigest(); now=time.monotonic(); recent=[stamp for stamp in admin_failures.get(fingerprint,[]) if now-stamp<300]
+    fingerprint=hashlib.sha256((k or 'missing').encode()).hexdigest()
+    if redis_client:
+        try:
+            rkey=f'rl:admin:{fingerprint}'
+            fails=int(redis_client.get(rkey) or 0)
+            if fails>=5:raise HTTPException(429,'Too many failed admin attempts. Try again later.')
+            if not db.auth_admin(k):
+                p=redis_client.pipeline(); p.incr(rkey); p.expire(rkey,300); p.execute()
+                raise HTTPException(401,'Admin authentication required')
+            return
+        except HTTPException:raise
+        except Exception:pass
+    now=time.monotonic(); recent=[stamp for stamp in admin_failures.get(fingerprint,[]) if now-stamp<300]
     if len(recent)>=5:raise HTTPException(429,'Too many failed admin attempts. Try again later.')
     if not db.auth_admin(k):
         recent.append(now); admin_failures[fingerprint]=recent
         raise HTTPException(401,'Admin authentication required')
+
 def player(k):
     p=db.auth_player(k)
     if not p:raise HTTPException(401,'Invalid player token')
@@ -65,7 +104,17 @@ def player(k):
 
 registration_attempts={}
 def allow_registration(request):
-    now=time.monotonic(); ip=request.client.host if request.client else 'unknown'; recent=[stamp for stamp in registration_attempts.get(ip,[]) if now-stamp<60]
+    ip=request.client.host if request.client else 'unknown'
+    if redis_client:
+        try:
+            rkey=f'rl:reg:{ip}'
+            cnt=redis_client.incr(rkey)
+            if cnt==1:redis_client.expire(rkey,60)
+            if cnt>30:raise HTTPException(429,'Too many registration attempts. Try again shortly.')
+            return
+        except HTTPException:raise
+        except Exception:pass
+    now=time.monotonic(); recent=[stamp for stamp in registration_attempts.get(ip,[]) if now-stamp<60]
     if len(recent)>=30:raise HTTPException(429,'Too many registration attempts. Try again shortly.')
     recent.append(now); registration_attempts[ip]=recent
 
@@ -74,7 +123,40 @@ def health():
     try:db.check_connection()
     except Exception:raise HTTPException(503,'Database unavailable')
     database='postgres' if os.getenv('DATABASE_URL') else 'local-sqlite'
-    return {'status':'ok','environment':ENV,'database':database,'durable_storage':database=='postgres'}
+    redis_ok=False
+    if redis_client:
+        try:redis_ok=bool(redis_client.ping())
+        except Exception:redis_ok=False
+    return {
+        'status':'ok',
+        'environment':ENV,
+        'database':database,
+        'durable_storage':database=='postgres',
+        'redis':redis_ok,
+        'cloudinary':bool(CLOUDINARY_URL),
+        'sentry':bool(SENTRY_DSN)
+    }
+
+@app.post('/api/upload')
+async def upload_evidence(file:UploadFile=File(...),x_player_token:str|None=Header(default=None),x_admin_key:str|None=Header(default=None)):
+    if not x_player_token and not x_admin_key:
+        raise HTTPException(401,'Authentication required')
+    if x_player_token: player(x_player_token)
+    elif x_admin_key: admin(x_admin_key)
+    if not file.content_type or not file.content_type.startswith('image/'):
+        raise HTTPException(400,'Only image files are supported (png, jpg, webp)')
+    contents=await file.read()
+    if len(contents)>5*1024*1024:
+        raise HTTPException(413,'Image must be smaller than 5MB')
+    if not CLOUDINARY_URL:
+        raise HTTPException(503,'Image storage service not configured')
+    try:
+        import cloudinary.uploader
+        res=cloudinary.uploader.upload(contents,folder='efootball/evidence',resource_type='image')
+        return {'url':res.get('secure_url')}
+    except Exception as e:
+        raise HTTPException(500,f'Upload failed: {str(e)}')
+
 @app.get('/ready')
 def ready():
     try:db.check_connection()
