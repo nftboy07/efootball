@@ -1,5 +1,15 @@
 # Implementation Plan
 
+## Current stack (shipped)
+
+- **Website:** Next.js App Router at the repository root, deployed on Vercel. Live preview: `https://efootball-inky.vercel.app`.
+- **Tournament API:** FastAPI in `apps/api`, deployed on Render (`render.yaml`).
+- Organizer UI is `/admin` on the Next.js site and authenticates with `ADMIN_KEY` (session cookie + FastAPI `X-Admin-Key`).
+- Match evidence stores HTTPS object URLs only (`submissions.evidence_url`), with Cloudinary (FastAPI) or Supabase Storage (Next.js) uploads. Do not write screenshots to ephemeral Render disk.
+
+The product notes below remain the V1 design target. Not every entity in “Required entities” is implemented yet; the running engine uses the FastAPI schema in `apps/api/app/db.py`.
+
+
 ## Product
 Independent eFootball Mobile community tournament platform. V1 is free-entry and does not automate gameplay.
 

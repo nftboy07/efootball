@@ -1,68 +1,152 @@
 # eFootball Community Tournament Platform
 
-A free-entry, mobile-first eFootball community tournament website. V1 supports 8-player single-elimination tournaments, registration, bracket generation, manual eFootball Custom Tournament IDs, result evidence, admin verification, disputes, leaderboard/statistics, and audit logs. It does not automate or control the eFootball game.
+A free-entry, mobile-first eFootball community tournament site. Players register for 8-player single-elimination cups, receive a Konami custom-room code from an organizer, submit match evidence, and appear on the leaderboard. The platform does not automate or control the eFootball game.
+
+**Live Next.js site:** [https://efootball-inky.vercel.app](https://efootball-inky.vercel.app)
+
+This repository is two apps that ship together:
+
+| Surface | Stack | Where it runs |
+| --- | --- | --- |
+| Public website, admin hub, AI reels, Instagram publisher | Next.js (App Router) at the repo root | Vercel (`vercel.json`) |
+| Tournament engine, brackets, evidence URLs, admin API | FastAPI in `apps/api` | Render (`render.yaml`) |
+
+The Next.js frontend talks to the FastAPI service via `NEXT_PUBLIC_API_URL` (default production value is the Render API).
 
 ## Current implementation
-- Public mobile website served by FastAPI
+
+- Public mobile website (Next.js) with cup lobbies, brackets, player passports, and homepage reel highlights
+- Organizer command hub at `/admin` (4 tabs: reels, tournaments, leaderboard, broadcast) behind `ADMIN_KEY`
 - 8-player registration with server-side capacity enforcement
 - Private player token returned after registration
-- Admin API protected by `ADMIN_KEY`
-- QF -> SF -> Final bracket generation
+- Admin API protected by `ADMIN_KEY` (timing-safe compare, rate-limited)
+- QF → SF → Final bracket generation
 - Manual eFootball Custom Tournament ID activation
-- Player result submission with evidence URL and notes
-- Admin result verification
-- Disputes and admin resolution
-- Forfeits
+- Player result submission with **HTTPS evidence URL and/or screenshot upload**
+- Admin result verification, live score reporting, disputes, forfeits
 - Player statistics and leaderboard
 - Audit log
-- PostgreSQL support through `DATABASE_URL`
-- SQLite fallback for local development
-- Render deployment configuration
-
-## Free deployment
-Render can run the FastAPI web service on its Free plan. Free web services sleep after 15 minutes of inactivity, and Render's free Postgres expires after 30 days, so for persistent free tournament data use a free external Postgres provider such as Supabase. Render documents both the free web service and datastore limits at https://render.com/docs/free.
-
-### 1. Database
-Create a free Supabase Postgres project and copy its Postgres connection string. Supabase currently includes a 500 MB database quota on its Free plan; inactive projects can pause. See https://supabase.com/pricing.
-
-### 2. Render
-Connect this GitHub repository to Render and deploy `render.yaml`.
-Set these environment variables on the web service:
-
-- `DATABASE_URL` = your Supabase Postgres connection string
-- `ADMIN_KEY` = a long random secret you choose
-
-The application creates its tables automatically on startup. For production durability, set `DATABASE_URL` to a managed PostgreSQL database; local SQLite is only a development fallback and is not durable on Render free instances.
-
-Use `/health` for service/storage status, `/ready` for deployment readiness, and `/version` for the running API version. Configure an external uptime monitor against `/ready` and `/api/tournaments`.
-
-### 3. Admin workflow
-1. Open the website.
-2. Enter `ADMIN_KEY` in the Admin panel.
-3. Create a tournament.
-4. Share the tournament ID.
-5. Wait for 8 players.
-6. Generate the bracket.
-7. Create the Custom Tournament manually inside eFootball.
-8. Enter the eFootball Custom Tournament ID and activate.
-9. Players play their matches.
-10. Players submit scores and evidence.
-11. Admin reviews and confirms results.
-12. Winners advance automatically.
-13. Final winner appears in the leaderboard.
-
-## Important production note
-Evidence currently accepts an evidence URL. Do not put private screenshot files on the Render filesystem because free Render web-service storage is ephemeral. For a production screenshot-upload flow, connect an S3-compatible or Supabase Storage bucket and store only private object URLs in `submissions.evidence_url`.
+- PostgreSQL through `DATABASE_URL`, SQLite fallback for local API development
+- Instagram Reels publisher using `INSTAGRAM_ACCESS_TOKEN` / `INSTAGRAM_ACCOUNT_ID` (no tokens in git)
+- Scheduled reels queue persisted in the API (`kv_store`), with homepage highlights from `/api/reels-queue?public=1`
 
 ## Local development
+
+### 1. Next.js site
+
+```bash
+cp .env.example .env.local
+# Set ADMIN_KEY, NEXT_PUBLIC_API_URL (local API or the Render URL)
+npm install
+npm run dev
+```
+
+Open `http://127.0.0.1:3000`. Organizer UI: `http://127.0.0.1:3000/admin`.
+
+### 2. FastAPI tournament API
+
 ```bash
 cd apps/api
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+export ADMIN_KEY=generate-a-long-random-secret
 uvicorn app.main:app --reload
 ```
 
-Open `http://127.0.0.1:8000`.
+Open `http://127.0.0.1:8000`. Use `/health` for storage status, `/ready` for readiness, `/version` for the API version.
 
-Set `ADMIN_KEY` for admin actions. Without `DATABASE_URL`, local SQLite is used automatically.
+Without `DATABASE_URL`, local SQLite (`SQLITE_PATH`, default `efootball.db`) is used automatically.
+
+Point the Next.js app at the local API:
+
+```bash
+NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
+```
+
+## Deploy
+
+### Vercel (website)
+
+The repo root is a Next.js app. Import the GitHub repository into Vercel (or push to the connected project). Set at least:
+
+- `NEXT_PUBLIC_API_URL` — Render API origin
+- `ADMIN_KEY` — same secret as the API (unlocks `/admin` and signs the organizer session cookie)
+- `ADMIN_SESSION_SECRET` — recommended dedicated cookie-signing secret
+- `INSTAGRAM_ACCESS_TOKEN` / `INSTAGRAM_ACCOUNT_ID` — for 1-click Reels connect/publish
+- `DASHSCOPE_API_KEY` — optional, AI reel studio
+- `CLOUDINARY_URL` or `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` — optional extra evidence upload path
+- `CRON_SECRET` — optional, protects `/api/cron/auto-reel`
+
+`vercel.json` schedules `/api/cron/auto-reel` every 4 hours.
+
+### Render (tournament API)
+
+Render can run the FastAPI service from `apps/api` (`render.yaml`). Free web services sleep after 15 minutes of inactivity, and Render's free Postgres expires after 30 days, so for persistent tournament data use a free external Postgres provider such as Supabase. Render documents both the free web service and datastore limits at https://render.com/docs/free.
+
+#### 1. Database
+
+Create a free Supabase Postgres project and copy its Postgres connection string. Supabase currently includes a 500 MB database quota on its Free plan; inactive projects can pause. See https://supabase.com/pricing.
+
+#### 2. Render service
+
+Connect this GitHub repository to Render and deploy `render.yaml`.
+Set these environment variables on the web service:
+
+- `DATABASE_URL` = your Supabase Postgres connection string
+- `ADMIN_KEY` = a long random secret you choose (must match Vercel if you use the Next.js admin hub)
+- `CLOUDINARY_URL` = optional, enables screenshot uploads (`cloudinary://API_KEY:API_SECRET@CLOUD_NAME`)
+- `CORS_ORIGINS` = production site origins (Vercel + custom domain)
+- `REDIS_URL` / `SENTRY_DSN` = optional
+
+The application creates its tables automatically on startup. For production durability, set `DATABASE_URL` to a managed PostgreSQL database; local SQLite is only a development fallback and is not durable on Render free instances.
+
+Configure an external uptime monitor against `/ready` and `/api/tournaments`.
+
+## Admin workflow
+
+1. Open `/admin` on the Next.js site.
+2. Enter `ADMIN_KEY`. A successful check against the tournament API (or the Vercel `ADMIN_KEY`) stores an httpOnly session cookie for 7 days.
+3. **Tournaments tab:** create a free-entry cup, optional prize/entry label, wait for 8 players, generate the bracket, enter the eFootball Custom Tournament ID, report live scores.
+4. Share the public tournament URL (`/tournaments/{id}`).
+5. Players play in eFootball, then submit scores plus screenshot upload and/or evidence URL.
+6. Admin reviews pending submissions or records scores from the hub. Winners advance automatically.
+7. **Reels tab:** generate clips, 1-click Instagram connect (env token), queue, publish.
+8. **Broadcast tab:** homepage banner + real service ping (including Instagram token health).
+
+There is no `admin123` backdoor. Do not put `ADMIN_KEY` in the client bundle (`NEXT_PUBLIC_*`).
+
+## Match evidence
+
+Players can:
+
+1. Paste an `https://` evidence URL, or
+2. Upload a PNG/JPEG/WebP screenshot (max 5 MB)
+
+Uploads never write to the Render web-service disk. The API stores **only** the object URL in `submissions.evidence_url`.
+
+Resolution order:
+
+1. FastAPI `/api/upload` → Cloudinary (`CLOUDINARY_URL` on Render)
+2. Next.js `/api/evidence-upload` → Cloudinary if `CLOUDINARY_URL` is set on Vercel
+3. Next.js `/api/evidence-upload` → Supabase Storage (`SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`, bucket `match-evidence` by default)
+
+If no object store is configured, the file path returns `503` and the HTTPS URL field still works.
+
+## Instagram / Reels
+
+Set Meta credentials in Vercel environment variables only:
+
+- `INSTAGRAM_ACCESS_TOKEN` — long-lived Page or Instagram professional token
+- `INSTAGRAM_ACCOUNT_ID` — optional; 1-click connect discovers it from the token
+
+The publisher, token health check, and queue mutations require an unlocked admin session. The public homepage reads `/api/reels-queue?public=1` (items with real video URLs). The queue is saved to the FastAPI `kv_store` so it survives Vercel serverless cold starts.
+
+## Tests
+
+```bash
+cd apps/api && pytest -q
+npm run build
+```
+
+GitHub Actions (`.github/workflows/test.yml`) runs both on pull requests.

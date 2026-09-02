@@ -37,6 +37,8 @@ export default function Tournament() {
   const [scoreA, setScoreA] = useState('');
   const [scoreB, setScoreB] = useState('');
   const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
+  const [evidenceUrl, setEvidenceUrl] = useState('');
+  const [playerTokenInput, setPlayerTokenInput] = useState('');
   const [uploading, setUploading] = useState(false);
   const [resultMsg, setResultMsg] = useState('');
 
@@ -62,6 +64,10 @@ export default function Tournament() {
 
   useEffect(() => {
     load();
+    try {
+      const saved = localStorage.getItem('player_token');
+      if (saved) setPlayerTokenInput(saved);
+    } catch {}
   }, [load]);
 
   function copyRoomCode(code: string) {
@@ -101,25 +107,27 @@ export default function Tournament() {
     playClick();
 
     try {
-      const token = localStorage.getItem('player_token');
+      const token = localStorage.getItem('player_token') || playerTokenInput.trim();
       if (!token) {
-        throw new Error('Please register or provide your player token to submit match scores.');
+        throw new Error('Please register or paste your player token to submit match scores.');
       }
 
-      let evidenceUrl: string | undefined = undefined;
+      let evidenceLink: string | undefined = evidenceUrl.trim() || undefined;
+      if (evidenceLink && !/^https?:\/\//i.test(evidenceLink)) {
+        throw new Error('Evidence URL must start with http:// or https://');
+      }
 
-      // If user uploaded a screenshot, send to Cloudinary /api/upload
       if (evidenceFile) {
         const formData = new FormData();
         formData.append('file', evidenceFile);
-        const upRes = await fetch(API + '/api/upload', {
+        const upRes = await fetch('/api/evidence-upload', {
           method: 'POST',
           headers: { 'X-Player-Token': token },
           body: formData,
         });
-        const upData = await upRes.json();
-        if (!upRes.ok) throw new Error(upData.detail || 'Screenshot upload failed');
-        evidenceUrl = upData.url;
+        const upData = await upRes.json().catch(() => ({}));
+        if (!upRes.ok) throw new Error(upData.detail || upData.error || 'Screenshot upload failed');
+        evidenceLink = upData.url;
       }
 
       await api(`/api/matches/${selectedMatch.id}/result`, {
@@ -131,7 +139,7 @@ export default function Tournament() {
         body: JSON.stringify({
           score_a: parseInt(scoreA, 10),
           score_b: parseInt(scoreB, 10),
-          evidence_url: evidenceUrl,
+          evidence_url: evidenceLink,
         }),
       });
 
@@ -141,6 +149,7 @@ export default function Tournament() {
       setScoreA('');
       setScoreB('');
       setEvidenceFile(null);
+      setEvidenceUrl('');
       load();
     } catch (e: any) {
       setResultMsg('error: ' + (e.message || 'Score submission failed'));
@@ -239,7 +248,7 @@ export default function Tournament() {
                   {t.name} <br />
                   <em>Matchday Arena.</em>
                 </h1>
-                <p>{playerCount}/8 registered players · Free entry · Single elimination bracket.</p>
+                <p>{playerCount}/8 registered players · Free entry · Single elimination bracket.{t.prize_pool ? ` · ${t.prize_pool}` : ''}</p>
               </div>
 
               <div className="tournament-score">
@@ -400,9 +409,9 @@ export default function Tournament() {
                       <span>
                         {m.round} / {m.slot}
                       </span>
-                      <strong>{m.player_a || 'TBD'}</strong>
+                      <strong>{m.player_a_name || m.player_a || 'TBD'}</strong>
                       <b>{m.score_a ?? '—'}</b>
-                      <strong>{m.player_b || 'TBD'}</strong>
+                      <strong>{m.player_b_name || m.player_b || 'TBD'}</strong>
                       <b>{m.score_b ?? '—'}</b>
                       <div>
                         {m.status === 'READY' ? (
@@ -434,7 +443,7 @@ export default function Tournament() {
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
                       <div className="field">
-                        <label>Score for {selectedMatch.player_a || 'Player A'}</label>
+                        <label>Score for {selectedMatch.player_a_name || selectedMatch.player_a || 'Player A'}</label>
                         <input
                           type="number"
                           min="0"
@@ -445,7 +454,7 @@ export default function Tournament() {
                         />
                       </div>
                       <div className="field">
-                        <label>Score for {selectedMatch.player_b || 'Player B'}</label>
+                        <label>Score for {selectedMatch.player_b_name || selectedMatch.player_b || 'Player B'}</label>
                         <input
                           type="number"
                           min="0"
@@ -458,11 +467,30 @@ export default function Tournament() {
                     </div>
 
                     <div className="field">
-                      <label>Match Proof Screenshot (Cloudinary Upload)</label>
+                      <label>Match proof screenshot (uploaded to Cloudinary / Supabase — only the URL is stored)</label>
                       <input
                         type="file"
                         accept="image/png, image/jpeg, image/webp"
                         onChange={(e) => setEvidenceFile(e.target.files?.[0] || null)}
+                      />
+                    </div>
+                    <div className="field">
+                      <label>Or paste an HTTPS evidence URL</label>
+                      <input
+                        type="url"
+                        value={evidenceUrl}
+                        onChange={(e) => setEvidenceUrl(e.target.value)}
+                        placeholder="https://…"
+                      />
+                    </div>
+                    <div className="field">
+                      <label>Player token (auto-filled after you register on this device)</label>
+                      <input
+                        type="password"
+                        value={playerTokenInput}
+                        onChange={(e) => setPlayerTokenInput(e.target.value)}
+                        placeholder="Paste token if submitting from another device"
+                        autoComplete="off"
                       />
                     </div>
 

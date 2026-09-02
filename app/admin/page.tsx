@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from 'react';
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'https://efootball-tournament-kwq4.onrender.com';
-
 type Tournament = {
   id: string;
   name: string;
@@ -17,29 +15,41 @@ type Tournament = {
 };
 
 async function api(path: string, init?: RequestInit) {
-  const r = await fetch(API + path, init);
+  const stripped = path.startsWith('/api/') ? path.slice(5) : path.replace(/^\//, '');
+  const r = await fetch('/api/backend/' + stripped, { credentials: 'include', ...init });
   const d = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(d.detail || 'Request failed');
+  if (!r.ok) throw new Error(d.detail || d.error || 'Request failed');
+  return d;
+}
+
+async function localApi(path: string, init?: RequestInit) {
+  const r = await fetch(path, { credentials: 'include', ...init });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || d.detail || 'Request failed');
   return d;
 }
 
 export default function Admin() {
+  const [unlocked, setUnlocked] = useState(false);
+  const [adminKey, setAdminKey] = useState('');
+  const [unlocking, setUnlocking] = useState(false);
+  const [sessionChecked, setSessionChecked] = useState(false);
   const [activeTab, setActiveTab] = useState<'reels' | 'tournaments' | 'leaderboard' | 'broadcast'>('reels');
 
   // Tournaments state
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
-  const [prizePool, setPrizePool] = useState('₹5,000 / $60 Prize Pool');
-  const [matchCountdown, setMatchCountdown] = useState('15:00');
+  const [prizePool, setPrizePool] = useState('Free entry · Community cup');
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState('');
+  const [arenaMatches, setArenaMatches] = useState<any[]>([]);
+  const [reportMatchId, setReportMatchId] = useState('');
 
   // Match score reporter
   const [scoreP1, setScoreP1] = useState(2);
   const [scoreP2, setScoreP2] = useState(1);
-  const [selectedMatch, setSelectedMatch] = useState('Match 1: Quarterfinal A');
 
   // AI Reels & Studio state
   const [prompt, setPrompt] = useState(
@@ -70,16 +80,15 @@ export default function Admin() {
     phase: '',
   });
 
-  const SAVED_DEFAULT_IG_TOKEN =
-    'EAAUYKazODOYBSVmLFFSyBm1lY3TeZBBVcYdpzHlqQEigTTubccMwHpxmTLZAF8P2vlwUsDFzrypA4YVmHYujdZCbcpX94d7Vm8whJZBMLjLroV69WNxorgsZC5PNtIAPLItRdQj3FkNi6LPuMGmAeKihePvwNlcYWC9SV6n0BuEXeNZASZASN7KZBd9he49HPnA0hvbnygVpZCDzWeSn2sAkuol18mU02QIcNZBZAe1yKn0A3nZAjfFZB4iQHdgXyZCb8ZBQoads9fU7yuNYpo0Kt2SU0d91yQZD';
-
   const [copyFeedback, setCopyFeedback] = useState(false);
   const [starPlayerName, setStarPlayerName] = useState('Lamine Yamal');
-  const [igToken, setIgToken] = useState(SAVED_DEFAULT_IG_TOKEN);
+  const [igToken, setIgToken] = useState('');
   const [igUserId, setIgUserId] = useState('');
   const [igPublishing, setIgPublishing] = useState(false);
   const [igMessage, setIgMessage] = useState('');
   const [showCreds, setShowCreds] = useState(false);
+  const [igHealth, setIgHealth] = useState<any>(null);
+  const [igConnecting, setIgConnecting] = useState(false);
 
   // Queue state
   const [queuedReels, setQueuedReels] = useState<any[]>([]);
@@ -99,7 +108,6 @@ export default function Admin() {
   // Storage synchronization on mount
   useEffect(() => {
     try {
-      const savedToken = localStorage.getItem('efootball_ig_token');
       const savedUserId = localStorage.getItem('efootball_ig_user_id');
       const savedVideo = localStorage.getItem('efootball_last_video_url');
       const savedPrompt = localStorage.getItem('efootball_last_prompt');
@@ -107,7 +115,6 @@ export default function Admin() {
       const savedCopy = localStorage.getItem('efootball_last_copy');
       const savedQueue = localStorage.getItem('efootball_reels_queue');
 
-      if (savedToken) setIgToken(savedToken);
       if (savedUserId) setIgUserId(savedUserId);
       if (savedVideo) setVideoUrl(savedVideo);
       if (savedPrompt) setPrompt(savedPrompt);
@@ -121,11 +128,26 @@ export default function Admin() {
     } catch {}
   }, []);
 
-  function saveQueueToStorage(newQueue: any[]) {
+  function saveQueueLocal(newQueue: any[]) {
     setQueuedReels(newQueue);
     try {
       localStorage.setItem('efootball_reels_queue', JSON.stringify(newQueue));
     } catch {}
+  }
+
+  async function persistQueue(newQueue: any[]) {
+    saveQueueLocal(newQueue);
+    try {
+      await localApi('/api/reels-queue', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ queue: newQueue }),
+      });
+    } catch {}
+  }
+
+  function saveQueueToStorage(newQueue: any[]) {
+    void persistQueue(newQueue);
   }
 
   // 1. AUTO-CRAFT PROMPT
@@ -310,6 +332,10 @@ export default function Admin() {
 
   // BATCH AUTO-QUEUE REELS
   async function batchAutoQueueReels(count = 5) {
+    if (!videoUrl) {
+      setMsg('error: Generate or load a real video first, then batch-queue copies at 45-minute intervals.');
+      return;
+    }
     setMsg(`🚀 Scheduling batch of ${count} daily superstar reels…`);
     const players = ['Lamine Yamal', 'Lionel Messi', 'Cristiano Ronaldo', 'Erling Haaland', 'Vinicius Jr', 'Jude Bellingham', 'Kylian Mbappe', 'Neymar Jr'];
     const now = Date.now();
@@ -319,8 +345,8 @@ export default function Admin() {
       const p = players[i % players.length];
       newBatch.push({
         id: 'REEL-' + Math.random().toString(36).substring(2, 9).toUpperCase(),
-        videoUrl: videoUrl || 'https://assets.mixkit.co/videos/preview/mixkit-soccer-player-kicking-the-ball-in-a-stadium-41129-large.mp4',
-        caption: `⭐ ${p} strikes with unstoppable power in the eFootball 2026 Championship! Join the free tournament at efootball2026.online 🏆 #eFootball #eFootball2026 #${p.replace(/\s+/g, '')} #Gaming`,
+        videoUrl,
+        caption: copy || `⭐ ${p} in the eFootball Community Cup! Free entry at efootball2026.online 🏆 #eFootball #eFootball2026`,
         playerTag: p,
         scheduledTime: new Date(now + (queuedReels.length + i + 1) * 45 * 60 * 1000).toISOString(),
         status: 'QUEUED',
@@ -330,7 +356,7 @@ export default function Admin() {
 
     const updated = [...newBatch, ...queuedReels];
     saveQueueToStorage(updated);
-    setMsg(`success: Scheduled ${count} daily reels across top superstars (spaced at 45m safe intervals)!`);
+    setMsg(`success: Scheduled ${count} reels from the current video (45m intervals). Queue is saved to the API.`);
   }
 
   function copyCaption() {
@@ -349,12 +375,13 @@ export default function Admin() {
     try {
       const r = await fetch('/api/instagram-publish', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           videoUrl,
           caption: copy || prompt,
-          accessToken: igToken,
-          igUserId,
+          accessToken: igToken || undefined,
+          igUserId: igUserId || undefined,
         }),
       });
       const d = await r.json();
@@ -399,12 +426,13 @@ export default function Admin() {
 
       const res = await fetch('/api/instagram-publish', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           videoUrl: item.videoUrl,
           caption: item.caption,
-          accessToken: igToken,
-          igUserId: igUserId,
+          accessToken: igToken || undefined,
+          igUserId: igUserId || undefined,
         }),
       });
 
@@ -590,10 +618,10 @@ export default function Admin() {
     if (!name.trim()) return;
     setLoading(true);
     try {
-      const t = await api('/api/tournaments', {
+      const t = await api('/api/admin/tournaments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, max_players: 8 }),
+        body: JSON.stringify({ name, prize_pool: prizePool }),
       });
       setName('');
       setMsg('success: Tournament created: ' + t.id);
@@ -634,9 +662,72 @@ export default function Admin() {
     setMsg(`success: Generated in-game Konami Room Code: ${rand}`);
   }
 
+  async function savePrizePool() {
+    if (!selected || !prizePool.trim()) return;
+    setLoading(true);
+    try {
+      await api(`/api/admin/tournaments/${selected}/prize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prize_pool: prizePool }),
+      });
+      setMsg('success: Prize / entry label updated');
+      await load();
+    } catch (e: any) {
+      setMsg('error: ' + e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function kickPlayer(pid: string, displayName: string) {
+    if (!selected) return;
+    if (!window.confirm(`Remove ${displayName} from this open cup?`)) return;
+    setLoading(true);
+    try {
+      await api(`/api/admin/tournaments/${selected}/players/${pid}/kick`, { method: 'POST' });
+      setMsg(`success: Removed ${displayName}`);
+      await load();
+    } catch (e: any) {
+      setMsg('error: ' + e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadArenaMatches(tid: string) {
+    try {
+      const data = await api(`/api/tournaments/${tid}/matches`);
+      setArenaMatches(Array.isArray(data) ? data : []);
+      const ready = (data || []).find((m: any) => m.status === 'READY' || m.status === 'UNDER_REVIEW');
+      if (ready) setReportMatchId(ready.id);
+    } catch {
+      setArenaMatches([]);
+    }
+  }
+
   // SUBMIT MATCH SCORE
-  function submitScore() {
-    setMsg(`success: Match Result Reported! Winner awarded +300 Elo points!`);
+  async function submitScore() {
+    if (!reportMatchId) {
+      setMsg('error: Select a live match first');
+      return;
+    }
+    setLoading(true);
+    try {
+      await api(`/api/admin/matches/${reportMatchId}/result`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ score_a: scoreP1, score_b: scoreP2, note: 'admin-live-report' }),
+      });
+      setMsg('success: Match score recorded and bracket advanced');
+      if (selected) await loadArenaMatches(selected);
+      await load();
+      await loadLeaderboard();
+    } catch (e: any) {
+      setMsg('error: ' + e.message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   // LEADERBOARD
@@ -691,7 +782,7 @@ export default function Admin() {
   async function checkHealth() {
     setHealthLoading(true);
     try {
-      const res = await fetch('/api/admin/ping');
+      const res = await fetch('/api/admin/ping', { credentials: 'include' });
       const data = await res.json();
       setHealthStatus(data);
       setMsg('success: Cloud services ping verified!');
@@ -702,30 +793,195 @@ export default function Admin() {
     }
   }
 
+  async function connectInstagram() {
+    setIgConnecting(true);
+    setIgMessage('Checking Meta token health…');
+    try {
+      const health = igToken
+        ? await localApi('/api/admin/instagram-status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ accessToken: igToken, igUserId }),
+          })
+        : await localApi('/api/admin/instagram-status');
+      setIgHealth(health);
+      if (health?.instagramAccount?.id) {
+        setIgUserId(health.instagramAccount.id);
+        try {
+          localStorage.setItem('efootball_ig_user_id', health.instagramAccount.id);
+        } catch {}
+      }
+      if (health?.valid) {
+        const handle = health.instagramAccount?.username ? `@${health.instagramAccount.username}` : 'Instagram';
+        setIgMessage(`✅ Connected ${handle}. Token source: ${health.source}.`);
+        setMsg(`success: Instagram connected (${handle})`);
+      } else {
+        setIgMessage('⚠️ ' + (health?.error || 'Token is not valid'));
+      }
+    } catch (e: any) {
+      setIgMessage('⚠️ ' + e.message);
+    } finally {
+      setIgConnecting(false);
+    }
+  }
+
   // SITE ANNOUNCEMENT
   async function saveAnnouncement() {
     try {
-      const res = await fetch('/api/admin/announcement', {
+      const data = await localApi('/api/admin/announcement', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ active: announcementActive, message: announcementText }),
       });
-      const data = await res.json();
       if (data.success) {
-        setMsg('success: Site-wide broadcast announcement updated!');
+        setMsg(data.persisted ? 'success: Site-wide broadcast saved' : 'success: Broadcast saved locally (API offline)');
       }
     } catch (e: any) {
       setMsg('error: Failed to update announcement');
     }
   }
 
+  async function unlock() {
+    setUnlocking(true);
+    setMsg('');
+    try {
+      await localApi('/api/admin/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminKey }),
+      });
+      setUnlocked(true);
+      setAdminKey('');
+      setMsg('success: Command hub unlocked');
+      await load();
+      await loadLeaderboard();
+      await checkHealth();
+      await connectInstagram();
+      try {
+        const q = await localApi('/api/reels-queue');
+        if (Array.isArray(q.queue)) saveQueueLocal(q.queue);
+      } catch {}
+    } catch (e: any) {
+      setUnlocked(false);
+      setMsg('error: ' + (e.message || 'Invalid admin key'));
+    } finally {
+      setUnlocking(false);
+    }
+  }
+
+  async function lockHub() {
+    try {
+      await fetch('/api/admin/session', { method: 'DELETE', credentials: 'include' });
+    } catch {}
+    setUnlocked(false);
+    setAdminKey('');
+    setMsg('');
+  }
+
   useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const s = await fetch('/api/admin/session', { credentials: 'include' });
+        const d = await s.json().catch(() => ({}));
+        if (!cancelled && d.unlocked) {
+          setUnlocked(true);
+        }
+      } catch {}
+      if (!cancelled) setSessionChecked(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!unlocked) return;
     load();
     loadLeaderboard();
     checkHealth();
-  }, []);
+    fetch('/api/reels-queue', { credentials: 'include' })
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d.queue) && d.queue.length) saveQueueLocal(d.queue);
+      })
+      .catch(() => {});
+    fetch('/api/admin/instagram-status', { credentials: 'include' })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d && typeof d.valid === 'boolean') {
+          setIgHealth(d);
+          if (d.instagramAccount?.id) setIgUserId(d.instagramAccount.id);
+        }
+      })
+      .catch(() => {});
+  }, [unlocked]);
+
+  useEffect(() => {
+    if (unlocked && selected) loadArenaMatches(selected);
+  }, [unlocked, selected]);
 
   const selectedTournament = tournaments.find((t) => t.id === selected);
+
+  if (!sessionChecked) {
+    return (
+      <div className="matchday-shell" style={{ background: '#020626', minHeight: '100vh', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p style={{ color: '#88a0ff', fontWeight: 700 }}>Checking organizer session…</p>
+      </div>
+    );
+  }
+
+  if (!unlocked) {
+    return (
+      <div className="matchday-shell" style={{ background: '#020626', minHeight: '100vh', color: '#fff' }}>
+        <header className="konami-top-header">
+          <div className="konami-top-inner">
+            <a className="konami-red-logo" href="/">KONAMI</a>
+            <span style={{ fontSize: '11px', color: '#88a0ff' }}>Organizer access</span>
+          </div>
+        </header>
+        <main className="main-content-flow" style={{ maxWidth: '480px', margin: '60px auto', padding: '0 20px' }}>
+          <section style={{ background: '#051145', border: '2px solid var(--konami-yellow)', borderRadius: '12px', padding: '28px' }}>
+            <span style={{ color: 'var(--konami-yellow)', fontFamily: 'var(--font-mono)', fontSize: '12px', fontWeight: 800 }}>COMMAND HUB</span>
+            <h1 style={{ fontSize: '36px', margin: '8px 0 12px', fontFamily: 'var(--font-display)', fontWeight: 900, textTransform: 'uppercase' }}>
+              Unlock <em>organizer suite.</em>
+            </h1>
+            <p style={{ color: '#88a0ff', fontSize: '14px' }}>
+              Enter the same <code>ADMIN_KEY</code> configured on the tournament API. The key is stored in an httpOnly session cookie — not in the page source.
+            </p>
+            <label style={{ fontSize: '12px', color: '#88a0ff', fontWeight: 800, display: 'block', marginBottom: '6px' }}>ADMIN KEY</label>
+            <input
+              autoFocus
+              type="password"
+              value={adminKey}
+              onChange={(e) => setAdminKey(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') unlock();
+              }}
+              placeholder="Paste ADMIN_KEY"
+              style={{ width: '100%', padding: '12px 14px', background: '#030a38', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', borderRadius: '6px', fontSize: '14px' }}
+            />
+            <button
+              className="matchday-button primary full"
+              onClick={unlock}
+              disabled={unlocking || !adminKey.trim()}
+              style={{ marginTop: '14px', width: '100%' }}
+            >
+              {unlocking ? 'VERIFYING…' : '1-CLICK UNLOCK COMMAND CENTER ↗'}
+            </button>
+            {msg && (
+              <p style={{ marginTop: '14px', fontWeight: 800, color: msg.startsWith('success') ? '#00ff66' : '#ff6666' }} role="status">
+                {msg}
+              </p>
+            )}
+            <p style={{ marginTop: '18px', fontSize: '12px' }}>
+              <a href="/" style={{ color: '#88a0ff' }}>← Back to public site</a>
+            </p>
+          </section>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="matchday-shell" style={{ background: '#020626', minHeight: '100vh', color: '#fff' }}>
@@ -739,7 +995,13 @@ export default function Admin() {
             <span style={{ fontSize: '11px', background: '#00cc66', color: '#000', fontWeight: 900, padding: '2px 8px', borderRadius: '4px' }}>
               SUPER ADMIN HUB 🔒
             </span>
-            <span style={{ fontSize: '11px', color: '#88a0ff' }}>eFootball™ 2026 Organizer Suite · v3.0 Master Hub</span>
+            <span style={{ fontSize: '11px', color: '#88a0ff' }}>eFootball™ Community Organizer Suite</span>
+            <button
+              onClick={lockHub}
+              style={{ background: 'transparent', border: '1px solid #88a0ff', color: '#88a0ff', fontSize: '11px', fontWeight: 800, borderRadius: '4px', padding: '2px 8px', cursor: 'pointer' }}
+            >
+              Lock
+            </button>
           </div>
         </div>
       </header>
@@ -1184,41 +1446,65 @@ export default function Admin() {
                   <div style={{ background: 'rgba(0,0,0,0.4)', borderRadius: '8px', padding: '16px', border: '1px solid rgba(255,255,255,0.1)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
                       <div>
-                        <strong style={{ color: '#fff', fontSize: '14px' }}>📲 DIRECT META INSTAGRAM PUBLISHER</strong>
-                        <span style={{ marginLeft: '10px', background: '#00cc66', color: '#000', fontSize: '11px', fontWeight: 900, padding: '2px 8px', borderRadius: '4px' }}>
-                          TOKEN LOADED ✓
+                        <strong style={{ color: '#fff', fontSize: '14px' }}>📲 META INSTAGRAM PUBLISHER</strong>
+                        <span style={{ marginLeft: '10px', background: igHealth?.valid ? '#00cc66' : '#ffaa00', color: '#000', fontSize: '11px', fontWeight: 900, padding: '2px 8px', borderRadius: '4px' }}>
+                          {igHealth?.valid
+                            ? `LIVE${igHealth.instagramAccount?.username ? ' @' + igHealth.instagramAccount.username : ''}`
+                            : igHealth?.configured
+                              ? 'TOKEN INVALID'
+                              : 'ENV TOKEN NOT SET'}
                         </span>
                       </div>
                       <button onClick={() => setShowCreds(!showCreds)} style={{ background: 'transparent', border: 'none', color: '#88a0ff', fontSize: '12px', cursor: 'pointer', textDecoration: 'underline' }}>
-                        {showCreds ? 'Hide Credentials ▲' : '⚙️ Custom Credentials ▼'}
+                        {showCreds ? 'Hide override ▲' : 'Optional token override ▼'}
                       </button>
                     </div>
+
+                    <p style={{ fontSize: '12px', color: '#88a0ff', margin: '0 0 10px' }}>
+                      Uses <code>INSTAGRAM_ACCESS_TOKEN</code> / <code>INSTAGRAM_ACCOUNT_ID</code> from server env. 1-click connect validates the token and resolves the professional account id.
+                    </p>
 
                     {showCreds && (
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
                         <input
-                          placeholder="Instagram Account ID (Auto-discovered)"
+                          placeholder="Instagram Account ID (optional override)"
                           value={igUserId}
                           onChange={(e) => setIgUserId(e.target.value)}
                           style={{ background: '#030a38', border: '1px solid rgba(255,255,255,0.2)', padding: '8px', color: '#fff', borderRadius: '4px', fontSize: '12px' }}
                         />
                         <input
-                          placeholder="Meta Access Token"
+                          placeholder="Paste token only if not using env"
                           type="password"
                           value={igToken}
                           onChange={(e) => setIgToken(e.target.value)}
+                          autoComplete="off"
                           style={{ background: '#030a38', border: '1px solid rgba(255,255,255,0.2)', padding: '8px', color: '#fff', borderRadius: '4px', fontSize: '12px' }}
                         />
                       </div>
                     )}
 
-                    <button
-                      onClick={publishToInstagram}
-                      disabled={igPublishing}
-                      style={{ width: '100%', background: 'var(--konami-yellow)', color: '#000', padding: '12px', borderRadius: '6px', fontWeight: 900, fontSize: '14px', border: 'none', cursor: 'pointer' }}
-                    >
-                      {igPublishing ? 'PUBLISHING TO INSTAGRAM…' : '🚀 POST TO INSTAGRAM REELS (AUTO-CONNECTED)'}
-                    </button>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                      <button
+                        onClick={connectInstagram}
+                        disabled={igConnecting}
+                        style={{ background: '#081766', color: '#fff', padding: '12px', borderRadius: '6px', fontWeight: 900, fontSize: '13px', border: '1px solid #88a0ff', cursor: 'pointer' }}
+                      >
+                        {igConnecting ? 'CHECKING TOKEN…' : '1-CLICK CONNECT / VALIDATE'}
+                      </button>
+                      <button
+                        onClick={publishToInstagram}
+                        disabled={igPublishing}
+                        style={{ background: 'var(--konami-yellow)', color: '#000', padding: '12px', borderRadius: '6px', fontWeight: 900, fontSize: '13px', border: 'none', cursor: 'pointer' }}
+                      >
+                        {igPublishing ? 'PUBLISHING TO INSTAGRAM…' : 'POST TO INSTAGRAM REELS'}
+                      </button>
+                    </div>
+
+                    {igHealth?.expiresAt && (
+                      <p style={{ margin: '10px 0 0', fontSize: '12px', color: '#88a0ff' }}>
+                        Token expiry: {new Date(igHealth.expiresAt).toLocaleString()}
+                      </p>
+                    )}
 
                     {igMessage && (
                       <p style={{ margin: '10px 0 0', fontSize: '13px', color: igMessage.startsWith('✅') ? '#00ff66' : 'var(--konami-yellow)', fontWeight: 800 }}>
@@ -1334,6 +1620,13 @@ export default function Admin() {
                 >
                   Create New Cup ↗
                 </button>
+                <button
+                  onClick={savePrizePool}
+                  disabled={!selected || loading}
+                  style={{ width: '100%', marginTop: '8px', background: '#081766', color: '#fff', padding: '10px', border: '1px solid #88a0ff', borderRadius: '6px', fontWeight: 800, cursor: 'pointer', fontSize: '12px' }}
+                >
+                  Save prize / entry label on selected cup
+                </button>
               </div>
 
               {/* ACTIVE CUPS */}
@@ -1409,10 +1702,7 @@ export default function Admin() {
                         <small style={{ color: '#88a0ff' }}>@{p.efootball_username}</small>
                       </div>
                       <button
-                        onClick={() => {
-                          const confirmKick = window.confirm(`Kick ${p.display_name} from tournament?`);
-                          if (confirmKick) setMsg(`success: Removed ${p.display_name} from tournament.`);
-                        }}
+                        onClick={() => kickPlayer(p.id, p.display_name)}
                         style={{ background: 'rgba(255,0,0,0.2)', border: '1px solid #ff4444', color: '#ff6666', borderRadius: '4px', padding: '2px 6px', fontSize: '10px', cursor: 'pointer' }}
                       >
                         Kick
@@ -1463,8 +1753,20 @@ export default function Admin() {
 
                   {/* MATCH SCORE REPORTER */}
                   <div style={{ background: '#030a38', padding: '16px', borderRadius: '8px' }}>
-                    <span style={{ fontSize: '12px', color: '#88a0ff', fontWeight: 800 }}>STEP 3: MATCH SCORE REPORTER</span>
-                    <p style={{ margin: '4px 0 10px', fontSize: '12px', color: '#aaa' }}>Record match scores & auto-calculate Elo.</p>
+                    <span style={{ fontSize: '12px', color: '#88a0ff', fontWeight: 800 }}>STEP 3: LIVE MATCH SCORE REPORTER</span>
+                    <p style={{ margin: '4px 0 10px', fontSize: '12px', color: '#aaa' }}>Writes confirmed scores to the bracket API (no draws).</p>
+                    <select
+                      value={reportMatchId}
+                      onChange={(e) => setReportMatchId(e.target.value)}
+                      style={{ width: '100%', marginBottom: '8px', padding: '8px', background: '#01041b', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', borderRadius: '4px', fontSize: '12px' }}
+                    >
+                      <option value="">Select fixture</option>
+                      {arenaMatches.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.round} {m.slot}: {m.player_a_name || m.player_a || 'TBD'} vs {m.player_b_name || m.player_b || 'TBD'} ({m.status})
+                        </option>
+                      ))}
+                    </select>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <input
                         type="number"
@@ -1481,6 +1783,7 @@ export default function Admin() {
                       />
                       <button
                         onClick={submitScore}
+                        disabled={!reportMatchId || loading}
                         style={{ flex: 1, background: '#00cc66', color: '#000', padding: '8px 12px', borderRadius: '6px', fontWeight: 900, border: 'none', cursor: 'pointer', fontSize: '12px' }}
                       >
                         Record Score ⚽
@@ -1626,35 +1929,27 @@ export default function Admin() {
                 </div>
                 <h2 style={{ fontSize: '26px', margin: '0 0 14px', fontFamily: 'var(--font-display)', fontWeight: 900 }}>Live Cloud Latency.</h2>
                 <div style={{ display: 'grid', gap: '10px' }}>
-                  <div style={{ background: '#030a38', padding: '12px 14px', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <strong style={{ color: '#fff', fontSize: '13px', display: 'block' }}>Render Tournament Backend</strong>
-                      <small style={{ color: '#88a0ff', fontSize: '11px' }}>https://efootball-tournament-kwq4.onrender.com</small>
-                    </div>
-                    <span style={{ background: '#00cc66', color: '#000', fontWeight: 900, fontSize: '11px', padding: '2px 8px', borderRadius: '4px' }}>
-                      ONLINE (120ms)
-                    </span>
-                  </div>
-
-                  <div style={{ background: '#030a38', padding: '12px 14px', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <strong style={{ color: '#fff', fontSize: '13px', display: 'block' }}>Alibaba Cloud Model Studio (Wan 2.1 & Qwen)</strong>
-                      <small style={{ color: '#88a0ff', fontSize: '11px' }}>Singapore Southeast Cluster</small>
-                    </div>
-                    <span style={{ background: '#00cc66', color: '#000', fontWeight: 900, fontSize: '11px', padding: '2px 8px', borderRadius: '4px' }}>
-                      ONLINE (65ms)
-                    </span>
-                  </div>
-
-                  <div style={{ background: '#030a38', padding: '12px 14px', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <strong style={{ color: '#fff', fontSize: '13px', display: 'block' }}>Meta Instagram Graph API</strong>
-                      <small style={{ color: '#88a0ff', fontSize: '11px' }}>Graph API v20.0</small>
-                    </div>
-                    <span style={{ background: '#00cc66', color: '#000', fontWeight: 900, fontSize: '11px', padding: '2px 8px', borderRadius: '4px' }}>
-                      ONLINE (78ms)
-                    </span>
-                  </div>
+                  {[
+                    { key: 'renderApi', title: 'Render Tournament Backend', sub: 'FastAPI /health' },
+                    { key: 'alibabaCloud', title: 'Alibaba Cloud Model Studio', sub: 'Wan 2.1 / Qwen host' },
+                    { key: 'metaGraphApi', title: 'Meta Graph API', sub: 'graph.facebook.com v20.0' },
+                    { key: 'instagramToken', title: 'Instagram token health', sub: 'INSTAGRAM_ACCESS_TOKEN' },
+                  ].map((row) => {
+                    const svc = healthStatus?.services?.[row.key];
+                    const status = svc?.status || (healthLoading ? 'CHECKING' : 'UNKNOWN');
+                    const ok = status === 'ONLINE';
+                    return (
+                      <div key={row.key} style={{ background: '#030a38', padding: '12px 14px', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <strong style={{ color: '#fff', fontSize: '13px', display: 'block' }}>{row.title}</strong>
+                          <small style={{ color: '#88a0ff', fontSize: '11px' }}>{row.sub}{svc?.detail ? ` · ${svc.detail}` : ''}</small>
+                        </div>
+                        <span style={{ background: ok ? '#00cc66' : status === 'UNCONFIGURED' ? '#ffaa00' : '#ff6666', color: '#000', fontWeight: 900, fontSize: '11px', padding: '2px 8px', borderRadius: '4px' }}>
+                          {status}{typeof svc?.latencyMs === 'number' && svc.latencyMs >= 0 ? ` (${svc.latencyMs}ms)` : ''}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>

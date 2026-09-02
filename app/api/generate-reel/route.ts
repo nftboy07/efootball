@@ -2,11 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const maxDuration = 60;
 
-const DEFAULT_API_KEY =
-  process.env.DASHSCOPE_API_KEY ||
-  'sk-ws-H.DDHDXEX.qvKW.MEQCIFeS2JXp1n4lslRc0z6iOqIZgUF24gNojvWMTS1_KIUAAiAmru1uflsT1iRv9vbfChiGUN8oV4eKqZsEHWcquw_w-w';
+const DEFAULT_API_KEY = process.env.DASHSCOPE_API_KEY || '';
 
-const DEFAULT_WORKSPACE = process.env.DASHSCOPE_WORKSPACE_ID || 'ws-ol68l9sr3gs9rhj4';
+const DEFAULT_WORKSPACE = process.env.DASHSCOPE_WORKSPACE_ID || '';
 
 const DEFAULT_HOST =
   process.env.DASHSCOPE_HOST ||
@@ -31,6 +29,9 @@ export async function GET(request: NextRequest) {
 
   if (!taskId) {
     return NextResponse.json({ error: 'Missing taskId parameter' }, { status: 400 });
+  }
+  if (!DEFAULT_API_KEY) {
+    return NextResponse.json({ error: 'DASHSCOPE_API_KEY is not configured.' }, { status: 503 });
   }
 
   try {
@@ -82,6 +83,10 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
   if (!body || typeof body.prompt !== 'string' || body.prompt.trim().length < 5) {
     return NextResponse.json({ error: 'Please enter a descriptive prompt for video generation.' }, { status: 400 });
+  }
+
+  if (!DEFAULT_API_KEY) {
+    return NextResponse.json({ error: 'DASHSCOPE_API_KEY is not configured.' }, { status: 503 });
   }
 
   const prompt = body.prompt.trim();
