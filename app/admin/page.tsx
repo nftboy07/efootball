@@ -921,6 +921,11 @@ export default function Admin() {
     if (unlocked && selected) loadArenaMatches(selected);
   }, [unlocked, selected]);
 
+  useEffect(() => {
+    const t = tournaments.find((x) => x.id === selected);
+    if (t?.prize_pool) setPrizePool(t.prize_pool);
+  }, [selected, tournaments]);
+
   const selectedTournament = tournaments.find((t) => t.id === selected);
 
   if (!sessionChecked) {
