@@ -30,10 +30,6 @@ async function localApi(path: string, init?: RequestInit) {
 }
 
 export default function Admin() {
-  const [unlocked, setUnlocked] = useState(false);
-  const [adminKey, setAdminKey] = useState('');
-  const [unlocking, setUnlocking] = useState(false);
-  const [sessionChecked, setSessionChecked] = useState(false);
   const [activeTab, setActiveTab] = useState<'reels' | 'tournaments' | 'leaderboard' | 'broadcast'>('reels');
 
   // Tournaments state
@@ -104,6 +100,8 @@ export default function Admin() {
   const [announcementActive, setAnnouncementActive] = useState(true);
   const [healthStatus, setHealthStatus] = useState<any>(null);
   const [healthLoading, setHealthLoading] = useState(false);
+  const [pendingSubs, setPendingSubs] = useState<any[]>([]);
+  const [disputes, setDisputes] = useState<any[]>([]);
 
   // Storage synchronization on mount
   useEffect(() => {
@@ -738,20 +736,103 @@ export default function Admin() {
     } catch {}
   }
 
-  function addManualPlayer() {
+  async function addManualPlayer() {
     if (!newPlayerName.trim()) return;
-    const newEntry = {
-      id: 'P-' + Math.random().toString(36).substring(2, 7),
-      display_name: newPlayerName,
-      efootball_username: newPlayerId || newPlayerName.toLowerCase().replace(/\s+/g, '_'),
-      played: 1,
-      wins: 1,
-      points: 1250,
-    };
-    setLeaderboardRows([newEntry, ...leaderboardRows]);
-    setNewPlayerName('');
-    setNewPlayerId('');
-    setMsg(`success: Added athlete ${newEntry.display_name} to database!`);
+    const selectedCup = tournaments.find((t) => t.id === selected);
+    try {
+      await api('/api/admin/athletes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          display_name: newPlayerName.trim(),
+          efootball_username: (newPlayerId || newPlayerName).trim(),
+          tournament_id: selectedCup?.status === 'OPEN' ? selectedCup.id : undefined,
+        }),
+      });
+      setNewPlayerName('');
+      setNewPlayerId('');
+      await loadLeaderboard();
+      await load();
+      setMsg('success: Athlete saved to the engine roster.');
+    } catch (e: any) {
+      setMsg('error: ' + (e.message || 'Could not add athlete'));
+    }
+  }
+
+  async function editAthletePoints(player: any) {
+    const raw = window.prompt(`Set points for ${player.display_name}:`, String(player.points ?? 0));
+    if (raw === null) return;
+    const points = Number(raw);
+    if (!Number.isFinite(points) || points < 0) {
+      setMsg('error: Points must be a number 0 or greater');
+      return;
+    }
+    try {
+      await api(`/api/admin/athletes/${player.id}/points`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ points: Math.floor(points) }),
+      });
+      await loadLeaderboard();
+      setMsg(`success: Updated ${player.display_name} to ${Math.floor(points)} pts`);
+    } catch (e: any) {
+      setMsg('error: ' + (e.message || 'Could not update points'));
+    }
+  }
+
+  async function loadPending() {
+    try {
+      const d = await api('/api/admin/submissions');
+      setPendingSubs(Array.isArray(d) ? d : d.submissions || []);
+    } catch {
+      setPendingSubs([]);
+    }
+  }
+
+  async function loadDisputes() {
+    try {
+      const d = await api('/api/admin/disputes');
+      setDisputes(Array.isArray(d) ? d : d.disputes || []);
+    } catch {
+      setDisputes([]);
+    }
+  }
+
+  async function confirmSubmission(id: string) {
+    try {
+      await api(`/api/admin/submissions/${id}/confirm`, { method: 'POST' });
+      await loadPending();
+      await load();
+      if (selected) await loadArenaMatches(selected);
+      await loadLeaderboard();
+      setMsg('success: Submission confirmed and bracket advanced.');
+    } catch (e: any) {
+      setMsg('error: ' + (e.message || 'Confirm failed'));
+    }
+  }
+
+  async function resolveDispute(id: string) {
+    try {
+      await api(`/api/admin/disputes/${id}/resolve`, { method: 'POST' });
+      await loadDisputes();
+      setMsg('success: Dispute marked resolved.');
+    } catch (e: any) {
+      setMsg('error: ' + (e.message || 'Resolve failed'));
+    }
+  }
+
+  async function forfeitPlayer(matchId: string, playerId: string, label: string) {
+    if (!playerId) return;
+    if (!window.confirm(`Forfeit ${label} on this fixture?`)) return;
+    try {
+      await api(`/api/admin/matches/${matchId}/forfeit/${playerId}`, { method: 'POST' });
+      if (selected) await loadArenaMatches(selected);
+      await load();
+      await loadLeaderboard();
+      setMsg(`success: Forfeit recorded for ${label}`);
+    } catch (e: any) {
+      setMsg('error: ' + (e.message || 'Forfeit failed'));
+    }
   }
 
   function exportCSV() {
@@ -779,15 +860,15 @@ export default function Admin() {
   }
 
   // HEALTH PING
-  async function checkHealth() {
+  async function checkHealth(opts?: { quiet?: boolean }) {
     setHealthLoading(true);
     try {
       const res = await fetch('/api/admin/ping', { credentials: 'include' });
       const data = await res.json();
       setHealthStatus(data);
-      setMsg('success: Cloud services ping verified!');
+      if (!opts?.quiet) setMsg('success: Cloud services ping verified!');
     } catch (e: any) {
-      setMsg('error: Failed to ping cloud services');
+      if (!opts?.quiet) setMsg('error: Failed to ping cloud services');
     } finally {
       setHealthLoading(false);
     }
@@ -841,85 +922,33 @@ export default function Admin() {
     }
   }
 
-  async function unlock() {
-    setUnlocking(true);
-    setMsg('');
-    try {
-      await localApi('/api/admin/session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ adminKey }),
-      });
-      setUnlocked(true);
-      setAdminKey('');
-      setMsg('success: Command hub unlocked');
-      await load();
-      await loadLeaderboard();
-      await checkHealth();
-      await connectInstagram();
-      try {
-        const q = await localApi('/api/reels-queue');
-        if (Array.isArray(q.queue)) saveQueueLocal(q.queue);
-      } catch {}
-    } catch (e: any) {
-      setUnlocked(false);
-      setMsg('error: ' + (e.message || 'Invalid admin key'));
-    } finally {
-      setUnlocking(false);
-    }
-  }
-
-  async function lockHub() {
-    try {
-      await fetch('/api/admin/session', { method: 'DELETE', credentials: 'include' });
-    } catch {}
-    setUnlocked(false);
-    setAdminKey('');
-    setMsg('');
-  }
-
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      await Promise.all([load(), loadLeaderboard(), checkHealth({ quiet: true }), connectInstagram(), loadPending(), loadDisputes()]);
+      if (cancelled) return;
       try {
-        const s = await fetch('/api/admin/session', { credentials: 'include' });
-        const d = await s.json().catch(() => ({}));
-        if (!cancelled && d.unlocked) {
-          setUnlocked(true);
+        const q = await localApi('/api/reels-queue');
+        if (Array.isArray(q.queue) && q.queue.length) saveQueueLocal(q.queue);
+      } catch {}
+      try {
+        const a = await fetch('/api/admin/announcement').then((r) => r.json());
+        if (!cancelled && a && typeof a.active === 'boolean') {
+          setAnnouncementActive(a.active);
+          if (typeof a.message === 'string') setAnnouncementText(a.message);
         }
       } catch {}
-      if (!cancelled) setSessionChecked(true);
     })();
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (!unlocked) return;
-    load();
-    loadLeaderboard();
-    checkHealth();
-    fetch('/api/reels-queue', { credentials: 'include' })
-      .then((r) => r.json())
-      .then((d) => {
-        if (Array.isArray(d.queue) && d.queue.length) saveQueueLocal(d.queue);
-      })
-      .catch(() => {});
-    fetch('/api/admin/instagram-status', { credentials: 'include' })
-      .then((r) => r.json())
-      .then((d) => {
-        if (d && typeof d.valid === 'boolean') {
-          setIgHealth(d);
-          if (d.instagramAccount?.id) setIgUserId(d.instagramAccount.id);
-        }
-      })
-      .catch(() => {});
-  }, [unlocked]);
-
-  useEffect(() => {
-    if (unlocked && selected) loadArenaMatches(selected);
-  }, [unlocked, selected]);
+    if (selected) loadArenaMatches(selected);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected]);
 
   useEffect(() => {
     const t = tournaments.find((x) => x.id === selected);
@@ -927,66 +956,7 @@ export default function Admin() {
   }, [selected, tournaments]);
 
   const selectedTournament = tournaments.find((t) => t.id === selected);
-
-  if (!sessionChecked) {
-    return (
-      <div className="matchday-shell" style={{ background: '#020626', minHeight: '100vh', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <p style={{ color: '#88a0ff', fontWeight: 700 }}>Checking organizer session…</p>
-      </div>
-    );
-  }
-
-  if (!unlocked) {
-    return (
-      <div className="matchday-shell" style={{ background: '#020626', minHeight: '100vh', color: '#fff' }}>
-        <header className="konami-top-header">
-          <div className="konami-top-inner">
-            <a className="konami-red-logo" href="/">KONAMI</a>
-            <span style={{ fontSize: '11px', color: '#88a0ff' }}>Organizer access</span>
-          </div>
-        </header>
-        <main className="main-content-flow" style={{ maxWidth: '480px', margin: '60px auto', padding: '0 20px' }}>
-          <section style={{ background: '#051145', border: '2px solid var(--konami-yellow)', borderRadius: '12px', padding: '28px' }}>
-            <span style={{ color: 'var(--konami-yellow)', fontFamily: 'var(--font-mono)', fontSize: '12px', fontWeight: 800 }}>COMMAND HUB</span>
-            <h1 style={{ fontSize: '36px', margin: '8px 0 12px', fontFamily: 'var(--font-display)', fontWeight: 900, textTransform: 'uppercase' }}>
-              Unlock <em>organizer suite.</em>
-            </h1>
-            <p style={{ color: '#88a0ff', fontSize: '14px' }}>
-              Enter the same <code>ADMIN_KEY</code> configured on the tournament API. The key is stored in an httpOnly session cookie — not in the page source.
-            </p>
-            <label style={{ fontSize: '12px', color: '#88a0ff', fontWeight: 800, display: 'block', marginBottom: '6px' }}>ADMIN KEY</label>
-            <input
-              autoFocus
-              type="password"
-              value={adminKey}
-              onChange={(e) => setAdminKey(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') unlock();
-              }}
-              placeholder="Paste ADMIN_KEY"
-              style={{ width: '100%', padding: '12px 14px', background: '#030a38', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', borderRadius: '6px', fontSize: '14px' }}
-            />
-            <button
-              className="matchday-button primary full"
-              onClick={unlock}
-              disabled={unlocking || !adminKey.trim()}
-              style={{ marginTop: '14px', width: '100%' }}
-            >
-              {unlocking ? 'VERIFYING…' : '1-CLICK UNLOCK COMMAND CENTER ↗'}
-            </button>
-            {msg && (
-              <p style={{ marginTop: '14px', fontWeight: 800, color: msg.startsWith('success') ? '#00ff66' : '#ff6666' }} role="status">
-                {msg}
-              </p>
-            )}
-            <p style={{ marginTop: '18px', fontSize: '12px' }}>
-              <a href="/" style={{ color: '#88a0ff' }}>← Back to public site</a>
-            </p>
-          </section>
-        </main>
-      </div>
-    );
-  }
+  const reportMatch = arenaMatches.find((m) => m.id === reportMatchId);
 
   return (
     <div className="matchday-shell" style={{ background: '#020626', minHeight: '100vh', color: '#fff' }}>
@@ -997,16 +967,10 @@ export default function Admin() {
             KONAMI
           </a>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span style={{ fontSize: '11px', background: '#00cc66', color: '#000', fontWeight: 900, padding: '2px 8px', borderRadius: '4px' }}>
-              SUPER ADMIN HUB 🔒
+            <span style={{ fontSize: '11px', background: 'var(--konami-yellow)', color: '#000', fontWeight: 900, padding: '2px 8px', borderRadius: '4px' }}>
+              COMMAND HUB
             </span>
             <span style={{ fontSize: '11px', color: '#88a0ff' }}>eFootball™ Community Organizer Suite</span>
-            <button
-              onClick={lockHub}
-              style={{ background: 'transparent', border: '1px solid #88a0ff', color: '#88a0ff', fontSize: '11px', fontWeight: 800, borderRadius: '4px', padding: '2px 8px', cursor: 'pointer' }}
-            >
-              Lock
-            </button>
           </div>
         </div>
       </header>
@@ -1028,7 +992,7 @@ export default function Admin() {
           <a className="pill-btn" href="/">PUBLIC HOME ↗</a>
           <a className="pill-btn" href="/#tournaments">CUPS</a>
           <a className="pill-btn" href="/#reels">REELS</a>
-          <a className="pill-btn home" href="/admin">COMMAND CENTER 🔒</a>
+          <a className="pill-btn home" href="/admin">COMMAND CENTER</a>
         </nav>
       </div>
 
@@ -1048,7 +1012,7 @@ export default function Admin() {
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
             <button
-              onClick={() => { load(); loadLeaderboard(); checkHealth(); }}
+              onClick={() => { load(); loadLeaderboard(); checkHealth(); loadPending(); loadDisputes(); }}
               style={{ background: '#081766', color: '#fff', border: '1px solid #88a0ff', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}
             >
               ↻ Refresh All Data
@@ -1088,7 +1052,7 @@ export default function Admin() {
             🎬 AI REELS & AUTO-PILOT STUDIO
           </button>
           <button
-            onClick={() => setActiveTab('tournaments')}
+            onClick={() => { setActiveTab('tournaments'); loadPending(); loadDisputes(); }}
             style={{
               padding: '14px 18px',
               background: activeTab === 'tournaments' ? 'var(--konami-yellow)' : '#081766',
@@ -1680,11 +1644,26 @@ export default function Admin() {
                     <span style={{ fontSize: '11px', color: 'var(--konami-yellow)', fontWeight: 800 }}>SELECTED ARENA / {selectedTournament.id}</span>
                     <h2 style={{ fontSize: '32px', margin: '4px 0', fontFamily: 'var(--font-display)', fontWeight: 900 }}>{selectedTournament.name}</h2>
                     <a href={`/tournaments/${selectedTournament.id}`} target="_blank" rel="noreferrer" style={{ color: '#88a0ff', fontSize: '13px', textDecoration: 'underline' }}>
-                      https://efootball2026.online/tournaments/{selectedTournament.id} ↗
+                      /tournaments/{selectedTournament.id} ↗
                     </a>
+                    <p style={{ margin: '8px 0 0', fontSize: '13px', color: '#88a0ff' }}>
+                      Prize / entry: <strong style={{ color: '#fff' }}>{selectedTournament.prize_pool || 'Free entry · Community cup'}</strong>
+                      {selectedTournament.efootball_id ? (
+                        <> · Room code: <strong style={{ color: 'var(--konami-yellow)' }}>{selectedTournament.efootball_id}</strong></>
+                      ) : (
+                        ' · Room code not set'
+                      )}
+                    </p>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <span style={{ background: '#00cc66', color: '#000', fontWeight: 900, padding: '4px 10px', borderRadius: '4px', fontSize: '12px' }}>
+                    <span style={{
+                      background: selectedTournament.status === 'LIVE' || selectedTournament.status === 'IN_PROGRESS' ? '#00cc66' : selectedTournament.status === 'OPEN' ? 'var(--konami-yellow)' : '#88a0ff',
+                      color: '#000',
+                      fontWeight: 900,
+                      padding: '4px 10px',
+                      borderRadius: '4px',
+                      fontSize: '12px',
+                    }}>
                       {selectedTournament.status}
                     </span>
                     <strong style={{ display: 'block', fontSize: '32px', color: 'var(--konami-yellow)', fontFamily: 'var(--font-mono)', marginTop: '6px' }}>
@@ -1794,10 +1773,90 @@ export default function Admin() {
                         Record Score ⚽
                       </button>
                     </div>
+                    {reportMatch && (reportMatch.player_a || reportMatch.player_b) && (
+                      <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          disabled={!reportMatch.player_a}
+                          onClick={() => forfeitPlayer(reportMatch.id, reportMatch.player_a, reportMatch.player_a_name || 'Player A')}
+                          style={{ flex: 1, background: 'rgba(255,0,0,0.15)', color: '#ff8888', border: '1px solid #ff4444', padding: '8px', borderRadius: '6px', fontWeight: 800, fontSize: '11px', cursor: 'pointer' }}
+                        >
+                          Forfeit {reportMatch.player_a_name || 'A'}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!reportMatch.player_b}
+                          onClick={() => forfeitPlayer(reportMatch.id, reportMatch.player_b, reportMatch.player_b_name || 'Player B')}
+                          style={{ flex: 1, background: 'rgba(255,0,0,0.15)', color: '#ff8888', border: '1px solid #ff4444', padding: '8px', borderRadius: '6px', fontWeight: 800, fontSize: '11px', cursor: 'pointer' }}
+                        >
+                          Forfeit {reportMatch.player_b_name || 'B'}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
             )}
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px', marginBottom: '30px' }}>
+              <div style={{ background: '#051145', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                  <span style={{ fontSize: '11px', color: '#88a0ff', fontWeight: 800 }}>MATCH EVIDENCE / SCORING</span>
+                  <button onClick={loadPending} style={{ background: 'transparent', border: 'none', color: 'var(--konami-yellow)', cursor: 'pointer', fontSize: '12px', fontWeight: 800 }}>↻ Refresh</button>
+                </div>
+                <h2 style={{ fontSize: '22px', margin: '0 0 12px', fontFamily: 'var(--font-display)', fontWeight: 900 }}>Pending submissions ({pendingSubs.length})</h2>
+                {pendingSubs.length ? (
+                  <div style={{ display: 'grid', gap: '8px' }}>
+                    {pendingSubs.map((s) => (
+                      <div key={s.id} style={{ background: '#030a38', padding: '12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                        <strong style={{ color: '#fff', fontSize: '13px' }}>{s.player_name || s.player_id}</strong>
+                        <p style={{ margin: '4px 0', fontSize: '12px', color: '#88a0ff' }}>
+                          {s.score_a}–{s.score_b} · {s.tournament_id} · {s.created_at ? new Date(s.created_at).toLocaleString() : ''}
+                        </p>
+                        {s.evidence_url ? (
+                          <a href={s.evidence_url} target="_blank" rel="noreferrer" style={{ color: 'var(--konami-yellow)', fontSize: '12px' }}>View evidence ↗</a>
+                        ) : (
+                          <span style={{ fontSize: '12px', color: '#88a0ff' }}>No evidence URL</span>
+                        )}
+                        <button
+                          onClick={() => confirmSubmission(s.id)}
+                          style={{ display: 'block', width: '100%', marginTop: '8px', background: '#00cc66', color: '#000', border: 'none', borderRadius: '4px', padding: '8px', fontWeight: 900, fontSize: '12px', cursor: 'pointer' }}
+                        >
+                          Confirm result
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={{ margin: 0, color: '#88a0ff', fontSize: '13px' }}>No pending evidence. Player URL/upload submissions land here for confirm.</p>
+                )}
+              </div>
+              <div style={{ background: '#051145', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                  <span style={{ fontSize: '11px', color: '#88a0ff', fontWeight: 800 }}>OPEN DISPUTES</span>
+                  <button onClick={loadDisputes} style={{ background: 'transparent', border: 'none', color: 'var(--konami-yellow)', cursor: 'pointer', fontSize: '12px', fontWeight: 800 }}>↻ Refresh</button>
+                </div>
+                <h2 style={{ fontSize: '22px', margin: '0 0 12px', fontFamily: 'var(--font-display)', fontWeight: 900 }}>Disputes ({disputes.length})</h2>
+                {disputes.length ? (
+                  <div style={{ display: 'grid', gap: '8px' }}>
+                    {disputes.map((d) => (
+                      <div key={d.id} style={{ background: '#030a38', padding: '12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                        <strong style={{ color: '#fff', fontSize: '13px' }}>{d.id}</strong>
+                        <p style={{ margin: '4px 0', fontSize: '12px', color: '#88a0ff' }}>{d.reason || 'No reason'} · match {d.match_id}</p>
+                        <button
+                          onClick={() => resolveDispute(d.id)}
+                          style={{ width: '100%', background: '#081766', color: '#fff', border: '1px solid #88a0ff', borderRadius: '4px', padding: '8px', fontWeight: 800, fontSize: '12px', cursor: 'pointer' }}
+                        >
+                          Mark resolved
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={{ margin: 0, color: '#88a0ff', fontSize: '13px' }}>No open disputes.</p>
+                )}
+              </div>
+            </div>
           </section>
         )}
 
@@ -1841,9 +1900,13 @@ export default function Admin() {
               >
                 Add Athlete ↗
               </button>
+              <span style={{ fontSize: '11px', color: '#88a0ff', width: '100%' }}>
+                Writes to the FastAPI roster. If an OPEN cup is selected on the Tournaments tab, the athlete is also registered into that cup.
+              </span>
             </div>
 
-            <div style={{ background: '#030a38', borderRadius: '8px', overflow: 'hidden' }}>
+            <div style={{ background: '#030a38', borderRadius: '8px', overflowX: 'auto' }}>
+              <div style={{ minWidth: '640px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '60px 2fr 1fr 1fr 1fr auto', padding: '12px 16px', background: '#081766', fontWeight: 900, fontSize: '12px', color: '#fff' }}>
                 <span>RANK</span>
                 <span>ATHLETE</span>
@@ -1867,12 +1930,7 @@ export default function Admin() {
                     <span style={{ color: '#00ff66', fontWeight: 800 }}>{p.wins || 0}</span>
                     <strong style={{ color: 'var(--konami-yellow)', fontSize: '15px' }}>{p.points || 0}</strong>
                     <button
-                      onClick={() => {
-                        const newPts = window.prompt(`Adjust points for ${p.display_name}:`, p.points || '0');
-                        if (newPts !== null) {
-                          setMsg(`success: Updated ${p.display_name} points to ${newPts}!`);
-                        }
-                      }}
+                      onClick={() => editAthletePoints(p)}
                       style={{ background: '#081766', border: '1px solid var(--konami-yellow)', color: 'var(--konami-yellow)', borderRadius: '4px', padding: '4px 10px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}
                     >
                       ✏️ Edit Points
@@ -1884,6 +1942,7 @@ export default function Admin() {
                   No competitive player records yet. Matches update automatically.
                 </div>
               )}
+              </div>
             </div>
           </section>
         )}
@@ -1964,7 +2023,7 @@ export default function Admin() {
 
       <footer className="matchday-footer" style={{ borderTop: '1px solid rgba(255,255,255,0.1)', padding: '25px 20px', textAlign: 'center', background: '#01041b' }}>
         <span style={{ color: '#88a0ff', fontSize: '13px' }}>
-          eFootball™ 2026 Official Esports Organizer Suite · All Systems Operational
+          eFootball™ 2026 Official Esports Organizer Suite · Ping services on the Alerts tab for live status
         </span>
       </footer>
     </div>

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { TOURNAMENT_API } from '../../lib/config';
-import { requireAdmin } from '../../lib/admin-auth';
+import { serviceAdmin } from '../../lib/admin-auth';
 
 export type QueuedReel = {
   id: string;
@@ -65,21 +65,17 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
-  const auth = await requireAdmin(request);
-  if (!auth.ok) return auth.response;
   const body = await request.json().catch(() => null);
   if (!body || !Array.isArray(body.queue)) {
     return NextResponse.json({ error: 'queue array required' }, { status: 400 });
   }
   memoryQueue = body.queue;
-  const persisted = await saveRemote(memoryQueue, auth.adminKey);
+  const auth = serviceAdmin();
+  const persisted = auth.ok ? await saveRemote(memoryQueue, auth.adminKey) : false;
   return NextResponse.json({ success: true, persisted, queue: memoryQueue });
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAdmin(request);
-  if (!auth.ok) return auth.response;
-
   const body = await request.json().catch(() => null);
   if (!body) return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
 
@@ -87,6 +83,8 @@ export async function POST(request: NextRequest) {
   if (remote) memoryQueue = remote;
 
   const { action, reelId, items, intervalMinutes = 45 } = body;
+  const auth = serviceAdmin();
+  const persist = async () => (auth.ok ? saveRemote(memoryQueue, auth.adminKey) : Promise.resolve(false));
 
   if (action === 'ADD_BATCH' && Array.isArray(items)) {
     const now = new Date();
@@ -100,7 +98,7 @@ export async function POST(request: NextRequest) {
       createdAt: item.createdAt || new Date().toISOString(),
     }));
     memoryQueue = [...newItems, ...memoryQueue];
-    const persisted = await saveRemote(memoryQueue, auth.adminKey);
+    const persisted = await persist();
     return NextResponse.json({
       success: true,
       persisted,
@@ -111,13 +109,13 @@ export async function POST(request: NextRequest) {
 
   if (action === 'REPLACE' && Array.isArray(items)) {
     memoryQueue = items;
-    const persisted = await saveRemote(memoryQueue, auth.adminKey);
+    const persisted = await persist();
     return NextResponse.json({ success: true, persisted, queue: memoryQueue });
   }
 
   if (action === 'DELETE_ITEM' && reelId) {
     memoryQueue = memoryQueue.filter((r) => r.id !== reelId);
-    const persisted = await saveRemote(memoryQueue, auth.adminKey);
+    const persisted = await persist();
     return NextResponse.json({ success: true, persisted, queue: memoryQueue });
   }
 

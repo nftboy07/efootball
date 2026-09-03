@@ -5,5 +5,3 @@ export const TOURNAMENT_API =
 
 export const GRAPH_API = 'https://graph.facebook.com/v20.0';
 
-export const COOKIE_ADMIN = 'efootball_admin_session';
-export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;

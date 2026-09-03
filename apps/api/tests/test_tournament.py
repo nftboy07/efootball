@@ -86,6 +86,16 @@ def test_admin_verify_prize_queue_and_live_score():
         got=client.get('/api/reels-queue').json()
         assert got['queue'][0]['id']=='REEL-1'
 
+        created=client.post('/api/admin/athletes',headers=admin,json={'display_name':'Rookie','efootball_username':'rookie1'})
+        assert created.status_code==200
+        pid=created.json()['player']['id']
+        pts=client.post(f'/api/admin/athletes/{pid}/points',headers=admin,json={'points':42})
+        assert pts.status_code==200
+        assert pts.json()['points']==42
+        board=client.get('/api/leaderboard').json()
+        assert any(row['id']==pid and row['points']==42 for row in board)
+        assert client.post('/api/admin/athletes',json={'display_name':'Nope','efootball_username':'blocked'}).status_code==401
+
 
 def test_evidence_upload_guards_and_https_url():
     os.environ['ADMIN_KEY']='test-admin-secret'

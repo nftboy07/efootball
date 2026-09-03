@@ -81,6 +81,30 @@ def kv_set(k,v):
     exec('INSERT INTO kv_store(k,v,updated_at) VALUES(?,?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v, updated_at=excluded.updated_at',(k,v,now()))
     return True
 
+def create_athlete(name, ef, tid=None):
+    name=(name or '').strip(); ef=(ef or '').strip()
+    if not name or not ef: return None,'INVALID_PLAYER'
+    if tid:
+        result,error=register(tid,name,ef)
+        return result,error
+    pid='P-'+secrets.token_hex(4).upper(); token=secrets.token_urlsafe(32)
+    exec('INSERT INTO players VALUES(?,?,?,?,?)',(pid,name,ef,token,now()))
+    exec('INSERT INTO stats(player_id,played,wins,losses,goals_for,goals_against,points) VALUES(?,?,?,?,?,?,?)',(pid,0,0,0,0,0,0))
+    return {'player':{'id':pid,'display_name':name,'efootball_username':ef,'token':token}}, None
+
+def set_points(pid, points):
+    if not one('SELECT id FROM players WHERE id=?',(pid,)): return None,'PLAYER_NOT_FOUND'
+    exec('INSERT INTO stats(player_id,played,wins,losses,goals_for,goals_against,points) VALUES(?,?,?,?,?,?,?) ON CONFLICT(player_id) DO UPDATE SET points=excluded.points',(pid,0,0,0,0,0,int(points)))
+    return one('SELECT p.id,p.display_name,p.efootball_username,COALESCE(s.played,0) played,COALESCE(s.wins,0) wins,COALESCE(s.losses,0) losses,COALESCE(s.points,0) points FROM players p LEFT JOIN stats s ON s.player_id=p.id WHERE p.id=?',(pid,)), None
+
+def list_pending_submissions():
+    names=player_names()
+    out=[]
+    for s in rows("SELECT * FROM submissions WHERE status='PENDING' ORDER BY created_at"):
+        s['player_name']=names.get(s['player_id']) or s['player_id']
+        out.append(s)
+    return out
+
 def kick_player(tid, pid):
     t=get_tournament(tid)
     if not t: return None,'TOURNAMENT_NOT_FOUND'

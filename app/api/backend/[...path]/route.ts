@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { TOURNAMENT_API } from '../../../lib/config';
-import { requireAdmin } from '../../../lib/admin-auth';
+import { serviceAdmin } from '../../../lib/admin-auth';
 
 const BLOCKED = new Set(['upload']);
 
@@ -25,7 +25,7 @@ export async function DELETE(request: NextRequest, ctx: { params: Promise<{ path
 }
 
 async function proxy(request: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
-  const auth = await requireAdmin(request);
+  const auth = serviceAdmin();
   if (!auth.ok) return auth.response;
 
   const { path } = await ctx.params;

@@ -16,7 +16,7 @@ The Next.js frontend talks to the FastAPI service via `NEXT_PUBLIC_API_URL` (def
 ## Current implementation
 
 - Public mobile website (Next.js) with cup lobbies, brackets, player passports, and homepage reel highlights
-- Organizer command hub at `/admin` (4 tabs: reels, tournaments, leaderboard, broadcast) behind `ADMIN_KEY`
+- Organizer command hub at `/admin` (4 tabs: reels, tournaments, leaderboard, broadcast). Direct entry — no password or unlock screen.
 - 8-player registration with server-side capacity enforcement
 - Private player token returned after registration
 - Admin API protected by `ADMIN_KEY` (timing-safe compare, rate-limited)
@@ -71,8 +71,7 @@ NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
 The repo root is a Next.js app. Import the GitHub repository into Vercel (or push to the connected project). Set at least:
 
 - `NEXT_PUBLIC_API_URL` — Render API origin
-- `ADMIN_KEY` — same secret as the API (unlocks `/admin` and signs the organizer session cookie)
-- `ADMIN_SESSION_SECRET` — recommended dedicated cookie-signing secret
+- `ADMIN_KEY` — same secret as Render. Server-only on Vercel; Next.js `/api/backend/*` injects `X-Admin-Key` so the browser never asks for it
 - `INSTAGRAM_ACCESS_TOKEN` / `INSTAGRAM_ACCOUNT_ID` — for 1-click Reels connect/publish
 - `DASHSCOPE_API_KEY` — optional, AI reel studio
 - `CLOUDINARY_URL` or `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` — optional extra evidence upload path
@@ -105,16 +104,16 @@ Configure an external uptime monitor against `/ready` and `/api/tournaments`.
 
 ## Admin workflow
 
-1. Open `/admin` on the Next.js site.
-2. Enter `ADMIN_KEY`. A successful check against the tournament API (or the Vercel `ADMIN_KEY`) stores an httpOnly session cookie for 7 days.
-3. **Tournaments tab:** create a free-entry cup, optional prize/entry label, wait for 8 players, generate the bracket, enter the eFootball Custom Tournament ID, report live scores.
-4. Share the public tournament URL (`/tournaments/{id}`).
-5. Players play in eFootball, then submit scores plus screenshot upload and/or evidence URL.
-6. Admin reviews pending submissions or records scores from the hub. Winners advance automatically.
-7. **Reels tab:** generate clips, 1-click Instagram connect (env token), queue, publish.
+1. Open `/admin` on the Next.js site. The 4-tab command hub loads immediately (no unlock screen, cookie session, or password field).
+2. **Tournaments tab:** create a free-entry cup, optional prize/entry label, wait for 8 players, generate the bracket, enter the eFootball Custom Tournament ID, report live scores, confirm evidence, resolve disputes.
+3. Share the public tournament URL (`/tournaments/{id}`).
+4. Players play in eFootball, then submit scores plus screenshot upload and/or evidence URL.
+5. Admin reviews pending submissions or records scores from the hub. Winners advance automatically.
+6. **Reels tab:** generate clips, 1-click Instagram connect (env token), queue, publish.
+7. **Athletes tab:** add players and edit points against the FastAPI roster (not a fake local list).
 8. **Broadcast tab:** homepage banner + real service ping (including Instagram token health).
 
-There is no `admin123` backdoor. Do not put `ADMIN_KEY` in the client bundle (`NEXT_PUBLIC_*`).
+`ADMIN_KEY` stays on the **server**: FastAPI still requires `X-Admin-Key` for direct API calls. Vercel/Next.js injects that header from env. Do not put `ADMIN_KEY` in the client bundle (`NEXT_PUBLIC_*`). Public player pages are unchanged.
 
 ## Match evidence
 
@@ -140,7 +139,7 @@ Set Meta credentials in Vercel environment variables only:
 - `INSTAGRAM_ACCESS_TOKEN` — long-lived Page or Instagram professional token
 - `INSTAGRAM_ACCOUNT_ID` — optional; 1-click connect discovers it from the token
 
-The publisher, token health check, and queue mutations require an unlocked admin session. The public homepage reads `/api/reels-queue?public=1` (items with real video URLs). The queue is saved to the FastAPI `kv_store` so it survives Vercel serverless cold starts.
+The hub uses env tokens (`INSTAGRAM_ACCESS_TOKEN` / `INSTAGRAM_ACCOUNT_ID`) for connect, validate, and publish. The public homepage reads `/api/reels-queue?public=1` (items with real video URLs). The queue is saved to the FastAPI `kv_store` so it survives Vercel serverless cold starts.
 
 ## Tests
 

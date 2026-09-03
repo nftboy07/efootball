@@ -66,6 +66,11 @@ class TournamentCreate(BaseModel):
 class PlayerCreate(BaseModel): display_name:str=Field(min_length=2,max_length=40); efootball_username:str=Field(min_length=1,max_length=60)
 class EfootballCode(BaseModel): tournament_id:str=Field(min_length=1,max_length=100)
 class PrizePoolUpdate(BaseModel): prize_pool:str=Field(min_length=1,max_length=80)
+class AthleteCreate(BaseModel):
+    display_name:str=Field(min_length=2,max_length=40)
+    efootball_username:str=Field(min_length=1,max_length=60)
+    tournament_id:str|None=None
+class PointsUpdate(BaseModel): points:int=Field(ge=0,le=99999)
 class ResultCreate(BaseModel):
     score_a:int=Field(ge=0,le=99)
     score_b:int=Field(ge=0,le=99)
@@ -208,6 +213,22 @@ def kick(tid:str,pid:str,x_admin_key:str|None=Header(default=None)):
     db.audit('PLAYER_KICKED','admin',tid,{'player_id':pid})
     return out
 
+@app.post('/api/admin/athletes')
+def create_athlete(data:AthleteCreate,x_admin_key:str|None=Header(default=None)):
+    admin(x_admin_key)
+    out,error=db.create_athlete(data.display_name,data.efootball_username,data.tournament_id)
+    if error: raise HTTPException(404 if error=='TOURNAMENT_NOT_FOUND' else 409, error)
+    db.audit('ATHLETE_CREATED','admin',out.get('player',{}).get('id'),{'tournament_id':data.tournament_id})
+    return out
+
+@app.post('/api/admin/athletes/{pid}/points')
+def set_points(pid:str,data:PointsUpdate,x_admin_key:str|None=Header(default=None)):
+    admin(x_admin_key)
+    out,error=db.set_points(pid,data.points)
+    if error: raise HTTPException(404, error)
+    db.audit('POINTS_UPDATED','admin',pid,{'points':data.points})
+    return out
+
 @app.post('/api/admin/matches/{match_id}/result')
 def admin_result(match_id:str,data:ResultCreate,x_admin_key:str|None=Header(default=None)):
     admin(x_admin_key)
@@ -281,7 +302,8 @@ def dispute(match_id:str,data:DisputeCreate,x_player_token:str|None=Header(defau
     if p['id'] not in (m['player_a'],m['player_b']):raise HTTPException(403,'Not a match participant')
     return db.create_dispute(match_id,p['id'],data.reason)
 @app.get('/api/admin/submissions')
-def submissions(x_admin_key:str|None=Header(default=None)):admin(x_admin_key); return db.rows("SELECT * FROM submissions WHERE status='PENDING' ORDER BY created_at")
+def submissions(x_admin_key:str|None=Header(default=None)):
+    admin(x_admin_key); return db.list_pending_submissions()
 @app.post('/api/admin/submissions/{submission_id}/confirm')
 def confirm(submission_id:str,x_admin_key:str|None=Header(default=None)):
     admin(x_admin_key); out,error=db.confirm(submission_id)

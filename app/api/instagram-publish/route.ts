@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { publishReel } from '../../lib/instagram';
-import { requireAdmin } from '../../lib/admin-auth';
 
 export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAdmin(request);
-  if (!auth.ok) return auth.response;
-
   const body = await request.json().catch(() => null);
   if (!body || !body.videoUrl) {
     return NextResponse.json({ error: 'Missing videoUrl for Instagram publishing.' }, { status: 400 });

@@ -77,7 +77,7 @@ export async function inspectTokenHealth(override?: {
       configured: false,
       valid: false,
       source: 'none',
-      error: 'INSTAGRAM_ACCESS_TOKEN is not configured. Set it in Vercel env or paste a token after unlocking admin.',
+      error: 'INSTAGRAM_ACCESS_TOKEN is not configured. Set it in Vercel env (INSTAGRAM_ACCESS_TOKEN / INSTAGRAM_ACCOUNT_ID).',
     };
   }
 
