@@ -1987,7 +1987,7 @@ export default function Admin() {
               <div style={{ background: '#051145', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                   <span style={{ fontSize: '11px', color: '#88a0ff', fontWeight: 800 }}>INFRASTRUCTURE STATUS</span>
-                  <button onClick={checkHealth} disabled={healthLoading} style={{ background: 'transparent', border: 'none', color: 'var(--konami-yellow)', cursor: 'pointer', fontSize: '12px', fontWeight: 800 }}>
+                  <button onClick={() => checkHealth()} disabled={healthLoading} style={{ background: 'transparent', border: 'none', color: 'var(--konami-yellow)', cursor: 'pointer', fontSize: '12px', fontWeight: 800 }}>
                     {healthLoading ? 'Pinging…' : '↻ Ping Services'}
                   </button>
                 </div>
