@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const DASHSCOPE_KEY =
-  process.env.DASHSCOPE_API_KEY ||
-  'sk-ws-H.DDHDXEX.qvKW.MEQCIFeS2JXp1n4lslRc0z6iOqIZgUF24gNojvWMTS1_KIUAAiAmru1uflsT1iRv9vbfChiGUN8oV4eKqZsEHWcquw_w-w';
+const DASHSCOPE_KEY = process.env.DASHSCOPE_API_KEY || '';
 
-const DASHSCOPE_WORKSPACE = process.env.DASHSCOPE_WORKSPACE_ID || 'ws-ol68l9sr3gs9rhj4';
+const DASHSCOPE_WORKSPACE = process.env.DASHSCOPE_WORKSPACE_ID || '';
 
 const providers = {
   qwen: {

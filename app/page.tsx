@@ -12,6 +12,7 @@ type Tournament = {
   players: any[];
   max_players: number;
   efootball_id?: string | null;
+  prize_pool?: string | null;
 };
 
 const featuredTournament: Tournament = {
@@ -34,8 +35,8 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
 
   const [announcement, setAnnouncement] = useState<{ active: boolean; message: string }>({
-    active: true,
-    message: '🔴 Registration for official eFootball 2026 Community Cup is LIVE!',
+    active: false,
+    message: '',
   });
 
   useEffect(() => {
@@ -233,6 +234,11 @@ export default function Home() {
                       {String(count).padStart(2, '0')}{' '}
                       <small>/ {String(max).padStart(2, '0')} Registered</small>
                     </p>
+                    {t.prize_pool ? (
+                      <p style={{ color: 'var(--konami-yellow)', fontSize: '13px', fontWeight: 800, margin: '4px 0 0' }}>
+                        {t.prize_pool}
+                      </p>
+                    ) : null}
                     <div className="progress-track">
                       <i style={{ width: `${pct}%` }} />
                     </div>
@@ -443,24 +449,11 @@ function ReelsShowcase() {
   const [reels, setReels] = useState<any[]>([]);
 
   useEffect(() => {
-    // 1. Try local storage first
-    try {
-      const saved = localStorage.getItem('efootball_reels_queue');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setReels(parsed);
-          return;
-        }
-      }
-    } catch {}
-
-    // 2. Fallback to API
-    fetch('/api/reels-queue')
+    fetch('/api/reels-queue?public=1')
       .then((r) => r.json())
       .then((d) => {
         if (Array.isArray(d.queue) && d.queue.length > 0) {
-          setReels(d.queue);
+          setReels(d.queue.slice(0, 6));
         }
       })
       .catch(() => {});

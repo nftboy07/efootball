@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 DATABASE_URL = os.getenv('DATABASE_URL', '').strip()
 
 SCHEMA = '''
-CREATE TABLE IF NOT EXISTS tournaments (id TEXT PRIMARY KEY, name TEXT NOT NULL, status TEXT NOT NULL, efootball_id TEXT, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS tournaments (id TEXT PRIMARY KEY, name TEXT NOT NULL, status TEXT NOT NULL, efootball_id TEXT, created_at TEXT NOT NULL, prize_pool TEXT);
 CREATE TABLE IF NOT EXISTS players (id TEXT PRIMARY KEY, display_name TEXT NOT NULL, efootball_username TEXT NOT NULL, token TEXT UNIQUE NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS tournament_players (tournament_id TEXT NOT NULL, player_id TEXT NOT NULL, joined_at TEXT NOT NULL, PRIMARY KEY(tournament_id, player_id), UNIQUE(tournament_id, player_id));
 CREATE TABLE IF NOT EXISTS matches (id TEXT PRIMARY KEY, tournament_id TEXT NOT NULL, round TEXT NOT NULL, slot INTEGER NOT NULL, player_a TEXT, player_b TEXT, score_a INTEGER, score_b INTEGER, winner TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL);
@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS submissions (id TEXT PRIMARY KEY, match_id TEXT NOT N
 CREATE TABLE IF NOT EXISTS disputes (id TEXT PRIMARY KEY, match_id TEXT NOT NULL, player_id TEXT NOT NULL, reason TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS stats (player_id TEXT PRIMARY KEY, played INTEGER NOT NULL DEFAULT 0, wins INTEGER NOT NULL DEFAULT 0, losses INTEGER NOT NULL DEFAULT 0, goals_for INTEGER NOT NULL DEFAULT 0, goals_against INTEGER NOT NULL DEFAULT 0, points INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS audit_logs (id TEXT PRIMARY KEY, action TEXT NOT NULL, actor TEXT NOT NULL, target TEXT, details TEXT, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS kv_store (k TEXT PRIMARY KEY, v TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_tp_tournament ON tournament_players(tournament_id);
 CREATE INDEX IF NOT EXISTS idx_matches_tournament ON matches(tournament_id);
 CREATE INDEX IF NOT EXISTS idx_submissions_status ON submissions(status);
@@ -33,11 +34,18 @@ def _conn():
 
 def _sql(q): return q.replace('?', '%s') if DATABASE_URL else q
 
+def _ensure_column(table, column, typedef):
+    try:
+        exec(f'ALTER TABLE {table} ADD COLUMN {column} {typedef}')
+    except Exception:
+        pass
+
 def init():
     with _conn() as c:
         for stmt in SCHEMA.split(';'):
             if stmt.strip(): c.execute(_sql(stmt))
         c.commit()
+    _ensure_column('tournaments', 'prize_pool', 'TEXT')
 
 def check_connection():
     with _conn() as c: c.execute(_sql('SELECT 1'))
@@ -54,8 +62,60 @@ def exec(q,args=()):
     with _conn() as c:
         cur=c.cursor(); cur.execute(_sql(q),args); c.commit(); return cur.rowcount
 
-def create_tournament(name):
-    tid='EC-'+secrets.token_hex(3).upper(); exec('INSERT INTO tournaments VALUES(?,?,?,?,?)',(tid,name.strip(),'OPEN',None,now())); return get_tournament(tid)
+def create_tournament(name, prize_pool=None):
+    tid='EC-'+secrets.token_hex(3).upper()
+    prize=(prize_pool or '').strip() or None
+    exec('INSERT INTO tournaments(id,name,status,efootball_id,created_at,prize_pool) VALUES(?,?,?,?,?,?)',(tid,name.strip(),'OPEN',None,now(),prize))
+    return get_tournament(tid)
+
+def set_prize_pool(tid, prize_pool):
+    if not get_tournament(tid): return None
+    exec('UPDATE tournaments SET prize_pool=? WHERE id=?',((prize_pool or '').strip() or None, tid))
+    return get_tournament(tid)
+
+def kv_get(k):
+    row=one('SELECT v FROM kv_store WHERE k=?',(k,))
+    return row['v'] if row else None
+
+def kv_set(k,v):
+    exec('INSERT INTO kv_store(k,v,updated_at) VALUES(?,?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v, updated_at=excluded.updated_at',(k,v,now()))
+    return True
+
+def create_athlete(name, ef, tid=None):
+    name=(name or '').strip(); ef=(ef or '').strip()
+    if not name or not ef: return None,'INVALID_PLAYER'
+    if tid:
+        result,error=register(tid,name,ef)
+        return result,error
+    pid='P-'+secrets.token_hex(4).upper(); token=secrets.token_urlsafe(32)
+    exec('INSERT INTO players VALUES(?,?,?,?,?)',(pid,name,ef,token,now()))
+    exec('INSERT INTO stats(player_id,played,wins,losses,goals_for,goals_against,points) VALUES(?,?,?,?,?,?,?)',(pid,0,0,0,0,0,0))
+    return {'player':{'id':pid,'display_name':name,'efootball_username':ef,'token':token}}, None
+
+def set_points(pid, points):
+    if not one('SELECT id FROM players WHERE id=?',(pid,)): return None,'PLAYER_NOT_FOUND'
+    exec('INSERT INTO stats(player_id,played,wins,losses,goals_for,goals_against,points) VALUES(?,?,?,?,?,?,?) ON CONFLICT(player_id) DO UPDATE SET points=excluded.points',(pid,0,0,0,0,0,int(points)))
+    return one('SELECT p.id,p.display_name,p.efootball_username,COALESCE(s.played,0) played,COALESCE(s.wins,0) wins,COALESCE(s.losses,0) losses,COALESCE(s.points,0) points FROM players p LEFT JOIN stats s ON s.player_id=p.id WHERE p.id=?',(pid,)), None
+
+def list_pending_submissions():
+    names=player_names()
+    out=[]
+    for s in rows("SELECT * FROM submissions WHERE status='PENDING' ORDER BY created_at"):
+        s['player_name']=names.get(s['player_id']) or s['player_id']
+        out.append(s)
+    return out
+
+def kick_player(tid, pid):
+    t=get_tournament(tid)
+    if not t: return None,'TOURNAMENT_NOT_FOUND'
+    if t['status'] not in ('OPEN','FULL'): return None,'CANNOT_KICK'
+    if pid not in [p['id'] for p in t['players']]: return None,'PLAYER_NOT_IN_TOURNAMENT'
+    exec('DELETE FROM tournament_players WHERE tournament_id=? AND player_id=?',(tid,pid))
+    remaining=one('SELECT COUNT(*) AS n FROM tournament_players WHERE tournament_id=?',(tid,))
+    count=remaining['n'] if remaining else 0
+    if t['status']=='FULL' and count<8:
+        exec("UPDATE tournaments SET status='OPEN' WHERE id=?",(tid,))
+    return get_tournament(tid), None
 
 def get_tournament(tid):
     t=one('SELECT * FROM tournaments WHERE id=?',(tid,))
@@ -111,7 +171,37 @@ def attach_code(tid,code):
     if not get_tournament(tid):return None
     exec("UPDATE tournaments SET efootball_id=?,status='IN_PROGRESS' WHERE id=?",(code.strip(),tid)); return get_tournament(tid)
 
-def get_matches(tid):return rows("SELECT * FROM matches WHERE tournament_id=? ORDER BY CASE round WHEN 'QF' THEN 1 WHEN 'SF' THEN 2 WHEN 'FINAL' THEN 3 ELSE 9 END,slot",(tid,))
+def player_names():
+    return {p['id']: p['display_name'] for p in rows('SELECT id,display_name FROM players')}
+
+def get_matches(tid):
+    names=player_names()
+    out=[]
+    for m in rows("SELECT * FROM matches WHERE tournament_id=? ORDER BY CASE round WHEN 'QF' THEN 1 WHEN 'SF' THEN 2 WHEN 'FINAL' THEN 3 ELSE 9 END,slot",(tid,)):
+        m['player_a_name']=names.get(m['player_a'])
+        m['player_b_name']=names.get(m['player_b'])
+        out.append(m)
+    return out
+
+def admin_report(match_id, sa, sb, evidence=None, note=None):
+    m=one('SELECT * FROM matches WHERE id=?',(match_id,))
+    if not m: return None,'MATCH_NOT_FOUND'
+    if m['status'] in ('CONFIRMED','FORFEIT','CANCELLED'): return None,'MATCH_ALREADY_CLOSED'
+    if sa==sb: return None,'DRAW_NOT_ALLOWED'
+    if not m['player_a'] or not m['player_b']: return None,'MATCH_NOT_READY'
+    winner=m['player_a'] if sa>sb else m['player_b']
+    pending=one("SELECT * FROM submissions WHERE match_id=? AND status='PENDING'",(match_id,))
+    if pending:
+        exec("UPDATE submissions SET score_a=?,score_b=?,evidence_url=COALESCE(?,evidence_url),note=COALESCE(?,note),status='CONFIRMED' WHERE id=?",(sa,sb,evidence,note,pending['id']))
+        sub=one('SELECT * FROM submissions WHERE id=?',(pending['id'],))
+    else:
+        sid='S-'+secrets.token_hex(5).upper()
+        exec('INSERT INTO submissions VALUES(?,?,?,?,?,?,?,?,?)',(sid,match_id,'admin',sa,sb,evidence,note or 'admin-report','CONFIRMED',now()))
+        sub=one('SELECT * FROM submissions WHERE id=?',(sid,))
+    exec("UPDATE matches SET score_a=?,score_b=?,winner=?,status='CONFIRMED' WHERE id=?",(sa,sb,winner,match_id))
+    update_stats(m,sub,winner)
+    advance(m,winner)
+    return one('SELECT * FROM matches WHERE id=?',(match_id,)), None
 
 def submit(match_id,player,sa,sb,evidence,note):
     m=one('SELECT * FROM matches WHERE id=?',(match_id,))

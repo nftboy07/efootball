@@ -2,6 +2,7 @@ import os
 import time
 import uuid
 import hashlib
+import json
 from fastapi import FastAPI, HTTPException, Header, Request, UploadFile, File
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
@@ -59,9 +60,17 @@ app.add_middleware(
     allow_headers=['*'],
 )
 
-class TournamentCreate(BaseModel): name:str=Field(min_length=2,max_length=100)
+class TournamentCreate(BaseModel):
+    name:str=Field(min_length=2,max_length=100)
+    prize_pool:str|None=Field(default=None,max_length=80)
 class PlayerCreate(BaseModel): display_name:str=Field(min_length=2,max_length=40); efootball_username:str=Field(min_length=1,max_length=60)
 class EfootballCode(BaseModel): tournament_id:str=Field(min_length=1,max_length=100)
+class PrizePoolUpdate(BaseModel): prize_pool:str=Field(min_length=1,max_length=80)
+class AthleteCreate(BaseModel):
+    display_name:str=Field(min_length=2,max_length=40)
+    efootball_username:str=Field(min_length=1,max_length=60)
+    tournament_id:str|None=None
+class PointsUpdate(BaseModel): points:int=Field(ge=0,le=99999)
 class ResultCreate(BaseModel):
     score_a:int=Field(ge=0,le=99)
     score_b:int=Field(ge=0,le=99)
@@ -74,6 +83,11 @@ class ResultCreate(BaseModel):
         if value and not value.startswith(('https://','http://')): raise ValueError('Evidence URL must use HTTP or HTTPS')
         return value
 class DisputeCreate(BaseModel): reason:str=Field(min_length=5,max_length=1000)
+class AnnouncementUpdate(BaseModel):
+    active:bool=True
+    message:str=Field(min_length=1,max_length=280)
+    type:str=Field(default='INFO',max_length=32)
+class ReelsQueueUpdate(BaseModel): queue:list=Field(default_factory=list)
 
 @app.on_event('startup')
 def startup():
@@ -175,9 +189,85 @@ def tournament(tid):
     t=db.get_tournament(tid)
     if not t:raise HTTPException(404,'Tournament not found')
     return t
+@app.get('/api/admin/verify')
+def verify_admin(x_admin_key:str|None=Header(default=None)):
+    admin(x_admin_key); return {'ok':True}
+
 @app.post('/api/admin/tournaments')
 def create_tournament(data:TournamentCreate,x_admin_key:str|None=Header(default=None)):
-    admin(x_admin_key); t=db.create_tournament(data.name); db.audit('TOURNAMENT_CREATED','admin',t['id'],{'name':data.name}); return t
+    admin(x_admin_key); t=db.create_tournament(data.name,data.prize_pool); db.audit('TOURNAMENT_CREATED','admin',t['id'],{'name':data.name}); return t
+
+@app.post('/api/admin/tournaments/{tid}/prize')
+def set_prize(tid:str,data:PrizePoolUpdate,x_admin_key:str|None=Header(default=None)):
+    admin(x_admin_key)
+    t=db.set_prize_pool(tid,data.prize_pool)
+    if not t: raise HTTPException(404,'Tournament not found')
+    db.audit('PRIZE_POOL_UPDATED','admin',tid,{'prize_pool':data.prize_pool})
+    return t
+
+@app.post('/api/admin/tournaments/{tid}/players/{pid}/kick')
+def kick(tid:str,pid:str,x_admin_key:str|None=Header(default=None)):
+    admin(x_admin_key)
+    out,error=db.kick_player(tid,pid)
+    if error: raise HTTPException(404 if error=='TOURNAMENT_NOT_FOUND' else 400, error)
+    db.audit('PLAYER_KICKED','admin',tid,{'player_id':pid})
+    return out
+
+@app.post('/api/admin/athletes')
+def create_athlete(data:AthleteCreate,x_admin_key:str|None=Header(default=None)):
+    admin(x_admin_key)
+    out,error=db.create_athlete(data.display_name,data.efootball_username,data.tournament_id)
+    if error: raise HTTPException(404 if error=='TOURNAMENT_NOT_FOUND' else 409, error)
+    db.audit('ATHLETE_CREATED','admin',out.get('player',{}).get('id'),{'tournament_id':data.tournament_id})
+    return out
+
+@app.post('/api/admin/athletes/{pid}/points')
+def set_points(pid:str,data:PointsUpdate,x_admin_key:str|None=Header(default=None)):
+    admin(x_admin_key)
+    out,error=db.set_points(pid,data.points)
+    if error: raise HTTPException(404, error)
+    db.audit('POINTS_UPDATED','admin',pid,{'points':data.points})
+    return out
+
+@app.post('/api/admin/matches/{match_id}/result')
+def admin_result(match_id:str,data:ResultCreate,x_admin_key:str|None=Header(default=None)):
+    admin(x_admin_key)
+    out,error=db.admin_report(match_id,data.score_a,data.score_b,data.evidence_url,data.note)
+    if error: raise HTTPException(404 if error=='MATCH_NOT_FOUND' else 400, error)
+    db.audit('ADMIN_RESULT_REPORTED','admin',match_id,{'score_a':data.score_a,'score_b':data.score_b})
+    return out
+
+@app.get('/api/announcement')
+def get_announcement():
+    raw=db.kv_get('announcement')
+    if not raw: return {'active':False,'message':'','type':'INFO','updated_at':None}
+    try: return json.loads(raw)
+    except Exception: return {'active':False,'message':'','type':'INFO'}
+
+@app.put('/api/announcement')
+def put_announcement(data:AnnouncementUpdate,x_admin_key:str|None=Header(default=None)):
+    admin(x_admin_key)
+    payload={'active':data.active,'message':data.message,'type':data.type,'updatedAt':db.now()}
+    db.kv_set('announcement', json.dumps(payload))
+    db.audit('ANNOUNCEMENT_UPDATED','admin','announcement',payload)
+    return payload
+
+@app.get('/api/reels-queue')
+def get_reels_queue():
+    raw=db.kv_get('reels_queue')
+    try: queue=json.loads(raw) if raw else []
+    except Exception: queue=[]
+    if not isinstance(queue,list): queue=[]
+    return {'queue':queue,'totalQueued':len([r for r in queue if isinstance(r,dict) and r.get('status')=='QUEUED']),'totalPublished':len([r for r in queue if isinstance(r,dict) and r.get('status')=='PUBLISHED'])}
+
+@app.put('/api/reels-queue')
+def put_reels_queue(data:ReelsQueueUpdate,x_admin_key:str|None=Header(default=None)):
+    admin(x_admin_key)
+    queue=data.queue if isinstance(data.queue,list) else []
+    if len(queue)>100: raise HTTPException(400,'Queue too large')
+    db.kv_set('reels_queue', json.dumps(queue))
+    db.audit('REELS_QUEUE_UPDATED','admin','reels_queue',{'count':len(queue)})
+    return {'success':True,'queue':queue}
 @app.post('/api/tournaments/{tid}/players')
 def register(tid:str,data:PlayerCreate,request:Request):
     allow_registration(request)
@@ -212,7 +302,8 @@ def dispute(match_id:str,data:DisputeCreate,x_player_token:str|None=Header(defau
     if p['id'] not in (m['player_a'],m['player_b']):raise HTTPException(403,'Not a match participant')
     return db.create_dispute(match_id,p['id'],data.reason)
 @app.get('/api/admin/submissions')
-def submissions(x_admin_key:str|None=Header(default=None)):admin(x_admin_key); return db.rows("SELECT * FROM submissions WHERE status='PENDING' ORDER BY created_at")
+def submissions(x_admin_key:str|None=Header(default=None)):
+    admin(x_admin_key); return db.list_pending_submissions()
 @app.post('/api/admin/submissions/{submission_id}/confirm')
 def confirm(submission_id:str,x_admin_key:str|None=Header(default=None)):
     admin(x_admin_key); out,error=db.confirm(submission_id)
