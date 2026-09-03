@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const DASHSCOPE_KEY = process.env.DASHSCOPE_API_KEY || '';
-
-const DASHSCOPE_WORKSPACE = process.env.DASHSCOPE_WORKSPACE_ID || '';
+const DASHSCOPE_KEY = (process.env.DASHSCOPE_API_KEY || '').trim();
+const DASHSCOPE_WORKSPACE = (process.env.DASHSCOPE_WORKSPACE_ID || '').trim();
+const OPENROUTER_KEY = (process.env.OPENROUTER_API_KEY || '').trim();
 
 const providers = {
   qwen: {
@@ -13,7 +13,7 @@ const providers = {
   },
   openrouter: {
     url: 'https://openrouter.ai/api/v1/chat/completions',
-    key: process.env.OPENROUTER_API_KEY,
+    key: OPENROUTER_KEY,
     model: 'meta-llama/llama-3.3-70b-instruct',
   },
   groq: {
@@ -34,18 +34,31 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Enter a descriptive copy prompt.' }, { status: 400 });
   }
 
-  const provider = (body.provider as keyof typeof providers) || 'qwen';
-  const config = providers[provider] || providers.qwen;
+  let provider = (body.provider as keyof typeof providers) || 'qwen';
+  let config = providers[provider] || providers.qwen;
 
-  const key = config.key || DASHSCOPE_KEY;
+  if (!(config.key || '').trim() && OPENROUTER_KEY) {
+    provider = 'openrouter';
+    config = providers.openrouter;
+  }
+
+  const key = (config.key || OPENROUTER_KEY || DASHSCOPE_KEY || '').trim();
   if (!key) {
-    return NextResponse.json({ error: `${provider} API key is not configured.` }, { status: 503 });
+    return NextResponse.json(
+      { error: 'No copy API key configured. Set OPENROUTER_API_KEY on Vercel.' },
+      { status: 503 }
+    );
   }
 
   const headers: Record<string, string> = {
     Authorization: `Bearer ${key}`,
     'Content-Type': 'application/json',
   };
+
+  if (provider === 'openrouter') {
+    headers['HTTP-Referer'] = 'https://www.efootball2026.online';
+    headers['X-Title'] = 'eFootball Community Cup';
+  }
 
   if ('workspace' in config && config.workspace) {
     headers['X-DashScope-WorkSpace'] = config.workspace;
@@ -72,7 +85,7 @@ export async function POST(request: NextRequest) {
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     return NextResponse.json(
-      { error: data.error?.message || `${provider} copy request failed (${response.status})` },
+      { error: data.error?.message || data.error || `${provider} copy request failed (${response.status})` },
       { status: response.status }
     );
   }

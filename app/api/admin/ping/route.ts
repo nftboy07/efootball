@@ -1,4 +1,4 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { TOURNAMENT_API } from '../../../lib/config';
 import { inspectTokenHealth } from '../../../lib/instagram';
 
@@ -19,6 +19,19 @@ export async function GET() {
     checks.renderApi = { status: 'OFFLINE', latencyMs: -1, detail: 'Unreachable' };
   }
 
+  const dashscopeKey = Boolean((process.env.DASHSCOPE_API_KEY || '').trim());
+  const openrouterKey = Boolean((process.env.OPENROUTER_API_KEY || '').trim());
+  checks.dashscope = {
+    status: dashscopeKey ? 'CONFIGURED' : 'UNCONFIGURED',
+    latencyMs: 0,
+    detail: dashscopeKey ? 'DASHSCOPE_API_KEY set' : 'not-set',
+  };
+  checks.openrouter = {
+    status: openrouterKey ? 'CONFIGURED' : 'UNCONFIGURED',
+    latencyMs: 0,
+    detail: openrouterKey ? 'OPENROUTER_API_KEY set' : 'not-set',
+  };
+
   try {
     const t0 = Date.now();
     const host =
@@ -30,6 +43,17 @@ export async function GET() {
     };
   } catch {
     checks.alibabaCloud = { status: 'OFFLINE', latencyMs: -1 };
+  }
+
+  try {
+    const t0 = Date.now();
+    const res = await fetch('https://openrouter.ai/api/v1/videos/models', { cache: 'no-store' });
+    checks.openrouterApi = {
+      status: res.ok ? 'ONLINE' : 'DEGRADED',
+      latencyMs: Date.now() - t0,
+    };
+  } catch {
+    checks.openrouterApi = { status: 'OFFLINE', latencyMs: -1 };
   }
 
   try {
@@ -54,6 +78,7 @@ export async function GET() {
     success: true,
     totalElapsedMs: Date.now() - start,
     timestamp: new Date().toISOString(),
+    videoProvider: dashscopeKey ? 'dashscope' : openrouterKey ? 'openrouter' : 'none',
     services: checks,
   });
 }
