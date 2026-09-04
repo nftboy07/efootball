@@ -361,9 +361,9 @@ export default function Admin() {
   }
 
   // CONNECT INSTAGRAM & TEST TOKEN
-  async function connectInstagram() {
+  async function connectInstagram(manual = false) {
     setIgConnecting(true);
-    setIgMessage('Checking Instagram credentials & token status…');
+    if (manual) setIgMessage('Checking Instagram credentials & token status…');
     try {
       const d = await localApi('/api/admin/instagram-status', {
         method: 'POST',
@@ -374,11 +374,11 @@ export default function Admin() {
       if (d.valid) {
         if (d.instagramAccount?.id) setIgUserId(d.instagramAccount.id);
         setIgMessage(`✅ Connected! Active account: @${d.instagramAccount?.username || d.user?.name || 'Instagram User'}`);
-      } else {
+      } else if (manual) {
         setIgMessage(`⚠️ ${d.error || 'Token expired or invalid. Update your token on Meta Developer portal.'}`);
       }
     } catch (e: any) {
-      setIgMessage('⚠️ ' + e.message);
+      if (manual) setIgMessage('⚠️ ' + e.message);
     } finally {
       setIgConnecting(false);
     }
@@ -832,14 +832,14 @@ export default function Admin() {
   }
 
   // HEALTH PING
-  async function checkHealth() {
+  async function checkHealth(manual = false) {
     setHealthLoading(true);
     try {
       const data = await localApi('/api/admin/ping');
       setHealthStatus(data);
-      setMsg('success: Cloud services ping verified!');
+      if (manual) setMsg('success: Cloud services ping verified!');
     } catch (e: any) {
-      setMsg('error: Failed to ping cloud services');
+      if (manual) setMsg('error: Failed to ping cloud services');
     } finally {
       setHealthLoading(false);
     }
@@ -934,7 +934,7 @@ export default function Admin() {
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
             <button
-              onClick={() => { load(); loadLeaderboard(); loadPending(); checkHealth(); connectInstagram(); }}
+              onClick={() => { load(); loadLeaderboard(); loadPending(); checkHealth(true); connectInstagram(true); }}
               style={{ background: '#081766', color: '#fff', border: '1px solid #88a0ff', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}
             >
               ↻ Refresh All Data
@@ -1376,7 +1376,7 @@ export default function Admin() {
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                       <button
-                        onClick={connectInstagram}
+                        onClick={() => connectInstagram(true)}
                         disabled={igConnecting}
                         style={{ background: '#081766', color: '#fff', padding: '12px', borderRadius: '6px', fontWeight: 900, fontSize: '13px', border: '1px solid #88a0ff', cursor: 'pointer' }}
                       >
@@ -1890,7 +1890,7 @@ export default function Admin() {
               <div style={{ background: '#051145', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                   <span style={{ fontSize: '11px', color: '#88a0ff', fontWeight: 800 }}>INFRASTRUCTURE STATUS</span>
-                  <button onClick={checkHealth} disabled={healthLoading} style={{ background: 'transparent', border: 'none', color: 'var(--konami-yellow)', cursor: 'pointer', fontSize: '12px', fontWeight: 800 }}>
+                  <button onClick={() => checkHealth(true)} disabled={healthLoading} style={{ background: 'transparent', border: 'none', color: 'var(--konami-yellow)', cursor: 'pointer', fontSize: '12px', fontWeight: 800 }}>
                     {healthLoading ? 'Pinging…' : '↻ Ping Services'}
                   </button>
                 </div>
