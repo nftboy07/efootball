@@ -66,7 +66,6 @@ export async function GET() {
   } catch {
     checks.metaGraphApi = { status: 'OFFLINE', latencyMs: -1 };
   }
-
   const ig = await inspectTokenHealth();
   checks.instagramToken = {
     status: !ig.configured ? 'UNCONFIGURED' : ig.valid ? 'ONLINE' : ig.isExpired ? 'EXPIRED' : 'DEGRADED',

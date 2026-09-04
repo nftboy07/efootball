@@ -1,5 +1,4 @@
 import type { NextConfig } from 'next';
-
 // The API origin the browser is allowed to call. Derived from env so pointing
 // the app at a different backend does not silently get blocked by CSP.
 const apiOrigin = (() => {
