@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { TOURNAMENT_API } from '../../../lib/config';
 import { serviceAdmin } from '../../../lib/admin-auth';
 
