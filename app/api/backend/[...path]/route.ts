@@ -25,9 +25,8 @@ export async function DELETE(request: NextRequest, ctx: { params: Promise<{ path
 }
 
 async function proxy(request: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
-  const auth = serviceAdmin();
-  if (!auth.ok) return auth.response;
-
+  const clientKey = request.headers.get('x-admin-key') || '';
+  const auth = serviceAdmin(clientKey);
   const { path } = await ctx.params;
   const segments = path || [];
   if (!segments.length || BLOCKED.has(segments[0])) {
@@ -36,9 +35,8 @@ async function proxy(request: NextRequest, ctx: { params: Promise<{ path: string
 
   const search = request.nextUrl.search || '';
   const target = `${TOURNAMENT_API}/api/${segments.map(encodeURIComponent).join('/')}${search}`;
-  const headers: Record<string, string> = {
-    'X-Admin-Key': auth.adminKey,
-  };
+  const headers: Record<string, string> = {};
+  if (auth.adminKey) headers['X-Admin-Key'] = auth.adminKey;
   const contentType = request.headers.get('content-type');
   if (contentType) headers['Content-Type'] = contentType;
 

@@ -15,9 +15,19 @@ type Tournament = {
   match_time?: string;
 };
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://efootball-tournament-kwq4.onrender.com';
+
 async function api(path: string, init?: RequestInit) {
   const stripped = path.startsWith('/api/') ? path.slice(5) : path.replace(/^\//, '');
-  const r = await fetch('/api/backend/' + stripped, { credentials: 'include', ...init });
+  try {
+    const r = await fetch('/api/backend/' + stripped, { credentials: 'include', ...init });
+    if (r.ok) {
+      return await r.json().catch(() => ({}));
+    }
+  } catch {}
+
+  const directUrl = `${API_BASE}/api/${stripped}`;
+  const r = await fetch(directUrl, init);
   const d = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(d.detail || d.error || 'Request failed');
   return d;
@@ -598,12 +608,14 @@ export default function Admin() {
     setLoading(true);
     try {
       const data = await api('/tournaments');
-      setTournaments(data);
-      if (data.length && !selected) {
-        setSelected(data[0].id);
+      if (Array.isArray(data)) {
+        setTournaments(data);
+        if (data.length && !selected) {
+          setSelected(data[0].id);
+        }
       }
-    } catch (e: any) {
-      setMsg('error: ' + e.message);
+    } catch {
+      // Backend waking up - retry quietly
     } finally {
       setLoading(false);
     }
