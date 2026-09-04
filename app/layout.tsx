@@ -1,13 +1,16 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { SoundProvider } from './components/SoundEffects';
+import { ToastProvider } from './components/Toast';
 
 export const viewport: Viewport = {
   themeColor: '#000be0',
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  // Pinch-zoom must stay available (WCAG 2.1 SC 1.4.4). Do not re-add
+  // maximumScale: 1 / userScalable: false — it locks out low-vision users.
+  maximumScale: 5,
+  userScalable: true,
 };
 
 export const metadata: Metadata = {
@@ -43,7 +46,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <SoundProvider>{children}</SoundProvider>
+        <a className="skip-link" href="#main">
+          Skip to main content
+        </a>
+        <SoundProvider>
+          <ToastProvider>{children}</ToastProvider>
+        </SoundProvider>
       </body>
     </html>
   );

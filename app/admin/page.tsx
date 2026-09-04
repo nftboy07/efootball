@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useToast } from '../components/Toast';
 
 type Tournament = {
   id: string;
@@ -39,7 +40,14 @@ export default function Admin() {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState('');
+  const [msg, setMsgRaw] = useState('');
+  const toast = useToast();
+  // Every existing setMsg('success: …') / setMsg('error: …') call now also
+  // raises a toast, so feedback is visible without scrolling to the top.
+  const setMsg = (m: string) => {
+    setMsgRaw(m);
+    toast.pushLegacy(m);
+  };
   const [arenaMatches, setArenaMatches] = useState<any[]>([]);
   const [reportMatchId, setReportMatchId] = useState('');
 
@@ -102,6 +110,8 @@ export default function Admin() {
   const [healthLoading, setHealthLoading] = useState(false);
   const [pendingSubs, setPendingSubs] = useState<any[]>([]);
   const [disputes, setDisputes] = useState<any[]>([]);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [lastSync, setLastSync] = useState<Date | null>(null);
 
   // Storage synchronization on mount
   useEffect(() => {
@@ -950,6 +960,53 @@ export default function Admin() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected]);
 
+  // Keyboard shortcuts: 1-4 jump between tabs, R refreshes. Ignored while the
+  // organizer is typing so they never fight a text field.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      const typing =
+        !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
+      if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
+
+      const map: Record<string, typeof activeTab> = {
+        '1': 'reels',
+        '2': 'tournaments',
+        '3': 'leaderboard',
+        '4': 'broadcast',
+      };
+      if (map[e.key]) {
+        setActiveTab(map[e.key]);
+        return;
+      }
+      if (e.key.toLowerCase() === 'r') {
+        load();
+        loadLeaderboard();
+        loadPending();
+        loadDisputes();
+        setLastSync(new Date());
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Poll the moderation queue so submissions and disputes surface without a
+  // manual refresh. Pauses while the tab is hidden to avoid pointless calls.
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const tick = () => {
+      if (document.visibilityState !== 'visible') return;
+      loadPending();
+      loadDisputes();
+      setLastSync(new Date());
+    };
+    const interval = setInterval(tick, 30000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoRefresh]);
+
   useEffect(() => {
     const t = tournaments.find((x) => x.id === selected);
     if (t?.prize_pool) setPrizePool(t.prize_pool);
@@ -957,6 +1014,35 @@ export default function Admin() {
 
   const selectedTournament = tournaments.find((t) => t.id === selected);
   const reportMatch = arenaMatches.find((m) => m.id === reportMatchId);
+
+  // At-a-glance operational metrics for the KPI strip.
+  const kpis = useMemo(() => {
+    const totalPlayers = tournaments.reduce((sum, t) => sum + (t.players?.length || 0), 0);
+    const openCups = tournaments.filter((t) => (t.status || '').toUpperCase() === 'OPEN').length;
+    const liveCups = tournaments.filter((t) =>
+      ['LOCKED', 'IN_PROGRESS', 'FULL'].includes((t.status || '').toUpperCase())
+    ).length;
+    const queued = queuedReels.filter((r) => r.status === 'QUEUED').length;
+    const published = queuedReels.filter((r) => r.status === 'PUBLISHED').length;
+    const services = healthStatus?.services || {};
+    const degraded = Object.values(services).filter(
+      (s: any) => s?.status && !['ONLINE', 'CONFIGURED'].includes(s.status)
+    ).length;
+    return {
+      cups: tournaments.length,
+      openCups,
+      liveCups,
+      totalPlayers,
+      pending: pendingSubs.length,
+      disputes: disputes.length,
+      queued,
+      published,
+      degraded,
+    };
+  }, [tournaments, pendingSubs, disputes, queuedReels, healthStatus]);
+
+  // Anything needing organizer attention right now.
+  const actionCount = kpis.pending + kpis.disputes;
 
   return (
     <div className="matchday-shell" style={{ background: '#020626', minHeight: '100vh', color: '#fff' }}>
@@ -1008,11 +1094,49 @@ export default function Admin() {
             </h1>
             <p style={{ color: '#88a0ff', margin: 0, fontSize: '14px' }}>
               Full administrative authority over tournaments, real-player AI reels, athlete standings, prize pools, and live broadcasting.
+              <br />
+              <span style={{ fontSize: '12px', color: '#5f74b8' }}>
+                Shortcuts: press <kbd>1</kbd>–<kbd>4</kbd> to switch tabs, <kbd>R</kbd> to refresh.
+              </span>
             </p>
           </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+            {lastSync && (
+              <span style={{ fontSize: '11px', color: '#7890d6', fontFamily: 'var(--font-mono)' }}>
+                Synced {lastSync.toLocaleTimeString()}
+              </span>
+            )}
+            <label
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '12px',
+                color: '#c9d6ff',
+                cursor: 'pointer',
+                background: '#081766',
+                border: '1px solid rgba(255,255,255,0.15)',
+                padding: '8px 12px',
+                borderRadius: '6px',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={autoRefresh}
+                onChange={(e) => setAutoRefresh(e.target.checked)}
+                style={{ cursor: 'pointer' }}
+              />
+              Auto-refresh 30s
+            </label>
             <button
-              onClick={() => { load(); loadLeaderboard(); checkHealth(); loadPending(); loadDisputes(); }}
+              onClick={() => {
+                load();
+                loadLeaderboard();
+                checkHealth();
+                loadPending();
+                loadDisputes();
+                setLastSync(new Date());
+              }}
               style={{ background: '#081766', color: '#fff', border: '1px solid #88a0ff', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}
             >
               ↻ Refresh All Data
@@ -1020,8 +1144,95 @@ export default function Admin() {
           </div>
         </div>
 
+        {/* OPERATIONAL KPI STRIP */}
+        <div className="kpi-strip">
+          <div className="kpi-card">
+            <b>{kpis.cups}</b>
+            <span>Total cups</span>
+          </div>
+          <div className="kpi-card">
+            <b>{kpis.openCups}</b>
+            <span>Open for entry</span>
+          </div>
+          <div className="kpi-card">
+            <b>{kpis.liveCups}</b>
+            <span>In progress</span>
+          </div>
+          <div className="kpi-card">
+            <b>{kpis.totalPlayers}</b>
+            <span>Players registered</span>
+          </div>
+          <div className={`kpi-card${kpis.pending ? ' alert' : ''}`}>
+            <b>{kpis.pending}</b>
+            <span>Pending review</span>
+          </div>
+          <div className={`kpi-card${kpis.disputes ? ' danger' : ''}`}>
+            <b>{kpis.disputes}</b>
+            <span>Open disputes</span>
+          </div>
+          <div className="kpi-card">
+            <b>{kpis.queued}</b>
+            <span>Reels queued</span>
+          </div>
+          <div className={`kpi-card${kpis.degraded ? ' alert' : ''}`}>
+            <b>{kpis.degraded}</b>
+            <span>Services degraded</span>
+          </div>
+        </div>
+
+        {/* ACTION REQUIRED CALLOUT */}
+        {actionCount > 0 && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              flexWrap: 'wrap',
+              padding: '13px 17px',
+              marginBottom: '22px',
+              borderRadius: '9px',
+              background: 'rgba(255,170,0,0.12)',
+              border: '1px solid rgba(255,170,0,0.55)',
+            }}
+            role="status"
+          >
+            <span aria-hidden="true" style={{ fontSize: '18px' }}>
+              🔔
+            </span>
+            <strong style={{ fontSize: '14px', color: '#ffc94d' }}>
+              {actionCount} item{actionCount === 1 ? '' : 's'} need your attention
+            </strong>
+            <span style={{ fontSize: '13px', color: '#c9d6ff' }}>
+              {kpis.pending} pending submission{kpis.pending === 1 ? '' : 's'} · {kpis.disputes} open dispute
+              {kpis.disputes === 1 ? '' : 's'}
+            </span>
+            <button
+              onClick={() => {
+                setActiveTab('tournaments');
+                loadPending();
+                loadDisputes();
+              }}
+              style={{
+                marginLeft: 'auto',
+                background: 'var(--konami-yellow)',
+                color: '#000',
+                border: 'none',
+                padding: '8px 15px',
+                borderRadius: '6px',
+                fontWeight: 900,
+                cursor: 'pointer',
+                fontSize: '12px',
+              }}
+            >
+              Review now ↗
+            </button>
+          </div>
+        )}
+
         {/* 4 MASTER ADMIN TABS */}
         <div
+          role="tablist"
+          aria-label="Admin sections"
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
@@ -1034,6 +1245,8 @@ export default function Admin() {
           }}
         >
           <button
+            role="tab"
+            aria-selected={activeTab === 'reels'}
             onClick={() => setActiveTab('reels')}
             style={{
               padding: '14px 18px',
@@ -1052,6 +1265,8 @@ export default function Admin() {
             🎬 AI REELS & AUTO-PILOT STUDIO
           </button>
           <button
+            role="tab"
+            aria-selected={activeTab === 'tournaments'}
             onClick={() => { setActiveTab('tournaments'); loadPending(); loadDisputes(); }}
             style={{
               padding: '14px 18px',
@@ -1068,8 +1283,15 @@ export default function Admin() {
             }}
           >
             🏆 TOURNAMENTS & BRACKETS ({tournaments.length})
+            {actionCount > 0 && (
+              <span className="tab-badge" title={`${actionCount} items need attention`}>
+                {actionCount}
+              </span>
+            )}
           </button>
           <button
+            role="tab"
+            aria-selected={activeTab === 'leaderboard'}
             onClick={() => { setActiveTab('leaderboard'); loadLeaderboard(); }}
             style={{
               padding: '14px 18px',
@@ -1088,6 +1310,8 @@ export default function Admin() {
             👑 LEADERBOARDS & ATHLETES
           </button>
           <button
+            role="tab"
+            aria-selected={activeTab === 'broadcast'}
             onClick={() => { setActiveTab('broadcast'); checkHealth(); }}
             style={{
               padding: '14px 18px',
@@ -1809,15 +2033,54 @@ export default function Admin() {
                   <div style={{ display: 'grid', gap: '8px' }}>
                     {pendingSubs.map((s) => (
                       <div key={s.id} style={{ background: '#030a38', padding: '12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)' }}>
-                        <strong style={{ color: '#fff', fontSize: '13px' }}>{s.player_name || s.player_id}</strong>
-                        <p style={{ margin: '4px 0', fontSize: '12px', color: '#88a0ff' }}>
-                          {s.score_a}–{s.score_b} · {s.tournament_id} · {s.created_at ? new Date(s.created_at).toLocaleString() : ''}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '8px' }}>
+                          <strong style={{ color: '#fff', fontSize: '13px' }}>{s.player_name || s.player_id}</strong>
+                          <span style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 900, color: 'var(--konami-yellow)', fontVariantNumeric: 'tabular-nums' }}>
+                            {s.score_a}–{s.score_b}
+                          </span>
+                        </div>
+                        <p style={{ margin: '4px 0 8px', fontSize: '12px', color: '#88a0ff' }}>
+                          {s.match_id || s.tournament_id}
+                          {s.created_at ? ` · ${new Date(s.created_at).toLocaleString()}` : ''}
                         </p>
+
+                        {/* Inline evidence preview so the organizer can verify
+                            without opening a new tab for every submission. */}
                         {s.evidence_url ? (
-                          <a href={s.evidence_url} target="_blank" rel="noreferrer" style={{ color: 'var(--konami-yellow)', fontSize: '12px' }}>View evidence ↗</a>
+                          <a
+                            href={s.evidence_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{ display: 'block', textDecoration: 'none' }}
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={s.evidence_url}
+                              alt={`Match evidence submitted by ${s.player_name || s.player_id}`}
+                              loading="lazy"
+                              style={{
+                                width: '100%',
+                                maxHeight: '150px',
+                                objectFit: 'cover',
+                                borderRadius: '5px',
+                                border: '1px solid rgba(255,255,0,0.35)',
+                                background: '#01041b',
+                                display: 'block',
+                              }}
+                              onError={(e) => {
+                                // Non-image evidence (or a dead link): hide the
+                                // broken preview and leave the text link.
+                                (e.currentTarget as HTMLImageElement).style.display = 'none';
+                              }}
+                            />
+                            <span style={{ color: 'var(--konami-yellow)', fontSize: '12px', display: 'inline-block', marginTop: '6px' }}>
+                              Open full evidence ↗
+                            </span>
+                          </a>
                         ) : (
-                          <span style={{ fontSize: '12px', color: '#88a0ff' }}>No evidence URL</span>
+                          <span style={{ fontSize: '12px', color: '#ffaa55' }}>⚠️ No evidence attached</span>
                         )}
+
                         <button
                           onClick={() => confirmSubmission(s.id)}
                           style={{ display: 'block', width: '100%', marginTop: '8px', background: '#00cc66', color: '#000', border: 'none', borderRadius: '4px', padding: '8px', fontWeight: 900, fontSize: '12px', cursor: 'pointer' }}

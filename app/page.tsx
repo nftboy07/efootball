@@ -1,9 +1,20 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
+import { CupGridSkeleton, TableSkeleton } from './components/Skeleton';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://efootball-tournament-kwq4.onrender.com';
+
+type CupFilter = 'ALL' | 'OPEN' | 'LIVE' | 'DONE';
+
+/** Groups the many backend statuses into the four buckets players care about. */
+function statusBucket(status: string): Exclude<CupFilter, 'ALL'> {
+  const s = (status || '').toUpperCase();
+  if (s === 'OPEN') return 'OPEN';
+  if (s === 'COMPLETED') return 'DONE';
+  return 'LIVE';
+}
 
 type Tournament = {
   id: string;
@@ -31,8 +42,12 @@ async function api(path: string, init?: RequestInit) {
 }
 
 export default function Home() {
-  const [ts, setTs] = useState<Tournament[]>([featuredTournament]);
+  const [ts, setTs] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const [filter, setFilter] = useState<CupFilter>('ALL');
+  const [query, setQuery] = useState('');
+  const [showTop, setShowTop] = useState(false);
 
   const [announcement, setAnnouncement] = useState<{ active: boolean; message: string }>({
     active: false,
@@ -40,22 +55,71 @@ export default function Home() {
   });
 
   useEffect(() => {
+    let cancelled = false;
+
     api('/api/tournaments')
       .then((data) => {
-        if (Array.isArray(data) && data.length) {
-          setTs(data);
-        }
+        if (cancelled) return;
+        // Only fall back to the placeholder cup when the API genuinely has none.
+        setTs(Array.isArray(data) && data.length ? data : [featuredTournament]);
       })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+      .catch(() => {
+        if (cancelled) return;
+        setFailed(true);
+        setTs([featuredTournament]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
 
     fetch('/api/admin/announcement')
       .then((r) => r.json())
       .then((d) => {
-        if (d && typeof d.active === 'boolean') setAnnouncement(d);
+        if (!cancelled && d && typeof d.active === 'boolean') setAnnouncement(d);
       })
       .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  useEffect(() => {
+    const onScroll = () => setShowTop(window.scrollY > 700);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  // Aggregate counters shown in the hero stats strip.
+  const stats = useMemo(() => {
+    const totalPlayers = ts.reduce((sum, t) => sum + (t.players?.length || 0), 0);
+    const openSlots = ts.reduce(
+      (sum, t) => sum + Math.max(0, (t.max_players || 8) - (t.players?.length || 0)),
+      0
+    );
+    const live = ts.filter((t) => statusBucket(t.status) === 'LIVE').length;
+    return { cups: ts.length, totalPlayers, openSlots, live };
+  }, [ts]);
+
+  const visibleCups = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return ts.filter((t) => {
+      const matchesFilter = filter === 'ALL' || statusBucket(t.status) === filter;
+      const matchesQuery =
+        !q || t.name?.toLowerCase().includes(q) || t.id?.toLowerCase().includes(q);
+      return matchesFilter && matchesQuery;
+    });
+  }, [ts, filter, query]);
+
+  const counts = useMemo(
+    () => ({
+      ALL: ts.length,
+      OPEN: ts.filter((t) => statusBucket(t.status) === 'OPEN').length,
+      LIVE: ts.filter((t) => statusBucket(t.status) === 'LIVE').length,
+      DONE: ts.filter((t) => statusBucket(t.status) === 'DONE').length,
+    }),
+    [ts]
+  );
 
   return (
     <div className="matchday-shell">
@@ -195,7 +259,22 @@ export default function Home() {
         </div>
       </section>
 
-      <main className="main-content-flow">
+      <main className="main-content-flow" id="main">
+        {/* 5b. LIVE COMMUNITY COUNTERS */}
+        <section className="live-stats-strip" aria-label="Live community statistics">
+          {[
+            { v: stats.cups, l: 'Active cups' },
+            { v: stats.totalPlayers, l: 'Players registered' },
+            { v: stats.openSlots, l: 'Slots still open' },
+            { v: stats.live, l: 'Cups in progress' },
+          ].map((s) => (
+            <div className="live-stat" key={s.l}>
+              <b>{loading ? '—' : s.v}</b>
+              <span>{s.l}</span>
+            </div>
+          ))}
+        </section>
+
         {/* 6. TOURNAMENT MATCHDAY CUPS (SPECIAL COMMUNITY EDITIONS) */}
         <section className="section-container" id="tournaments">
           <div className="section-title-wrap">
@@ -211,46 +290,139 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="cup-grid">
-            {ts.map((t) => {
-              const count = t.players?.length || 0;
-              const max = t.max_players || 8;
-              const pct = Math.min(100, (count / max) * 100);
-              const isFull = count >= max;
+          {failed && (
+            <div className="conn-banner" role="status">
+              <span aria-hidden="true">⚠️</span>
+              <span>
+                Could not reach the tournament server, so live cup data may be missing. The API may be waking
+                from sleep — retry in a moment.
+              </span>
+            </div>
+          )}
 
-              return (
-                <article className="cup-card" key={t.id}>
-                  <div className="cup-card-top">
-                    <span className="cup-status">
-                      <i /> {t.status}
-                    </span>
-                    <span className="cup-number">{t.id}</span>
-                  </div>
-
-                  <div className="cup-card-body">
-                    <span className="cup-edition-tag">SPECIAL COMMUNITY CUP</span>
-                    <h3>{t.name}</h3>
-                    <p>
-                      {String(count).padStart(2, '0')}{' '}
-                      <small>/ {String(max).padStart(2, '0')} Registered</small>
-                    </p>
-                    {t.prize_pool ? (
-                      <p style={{ color: 'var(--konami-yellow)', fontSize: '13px', fontWeight: 800, margin: '4px 0 0' }}>
-                        {t.prize_pool}
-                      </p>
-                    ) : null}
-                    <div className="progress-track">
-                      <i style={{ width: `${pct}%` }} />
-                    </div>
-                  </div>
-
-                  <a className="matchday-button primary full" href={`/tournaments/${t.id}`}>
-                    {isFull ? 'View Live Bracket' : 'Reserve Slot'} <span>↗</span>
-                  </a>
-                </article>
-              );
-            })}
+          {/* Search + status filters */}
+          <div className="cup-filter-bar">
+            <label className="sr-only" htmlFor="cup-search">
+              Search cups by name or ID
+            </label>
+            <input
+              id="cup-search"
+              className="cup-search"
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search cups by name or ID…"
+            />
+            {(['ALL', 'OPEN', 'LIVE', 'DONE'] as CupFilter[]).map((f) => (
+              <button
+                key={f}
+                type="button"
+                className="filter-chip"
+                aria-pressed={filter === f}
+                onClick={() => setFilter(f)}
+              >
+                {f === 'ALL' ? 'All' : f === 'OPEN' ? 'Open' : f === 'LIVE' ? 'In progress' : 'Completed'} (
+                {counts[f]})
+              </button>
+            ))}
           </div>
+
+          {loading ? (
+            <CupGridSkeleton count={3} />
+          ) : visibleCups.length === 0 ? (
+            <div className="ranking-empty">
+              No cups match “{query || filter.toLowerCase()}”.{' '}
+              <button
+                type="button"
+                onClick={() => {
+                  setQuery('');
+                  setFilter('ALL');
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--konami-yellow)',
+                  cursor: 'pointer',
+                  fontWeight: 800,
+                  textDecoration: 'underline',
+                  padding: 0,
+                  font: 'inherit',
+                }}
+              >
+                Clear filters
+              </button>
+            </div>
+          ) : (
+            <div className="cup-grid">
+              {visibleCups.map((t) => {
+                const count = t.players?.length || 0;
+                const max = t.max_players || 8;
+                const pct = Math.min(100, (count / max) * 100);
+                const isFull = count >= max;
+                const left = Math.max(0, max - count);
+                const bucket = statusBucket(t.status);
+                const pillClass = isFull ? 'full' : left <= 3 ? 'low' : 'open';
+
+                return (
+                  <article className="cup-card" key={t.id}>
+                    <div className="cup-card-top">
+                      <span className="cup-status">
+                        <i /> {t.status}
+                      </span>
+                      <span className="cup-number">{t.id}</span>
+                    </div>
+
+                    <div className="cup-card-body">
+                      <span className="cup-edition-tag">SPECIAL COMMUNITY CUP</span>
+                      <h3>{t.name}</h3>
+                      <p>
+                        {String(count).padStart(2, '0')}{' '}
+                        <small>/ {String(max).padStart(2, '0')} Registered</small>
+                      </p>
+
+                      {/* Scarcity cue — the strongest nudge to register */}
+                      <span className={`slots-pill ${pillClass}`} style={{ marginTop: '6px' }}>
+                        {isFull
+                          ? bucket === 'DONE'
+                            ? '🏁 Cup complete'
+                            : '🔒 Lobby full'
+                          : left === 1
+                            ? '🔥 Final slot left!'
+                            : `🎯 ${left} slots left`}
+                      </span>
+
+                      {t.prize_pool ? (
+                        <p
+                          style={{
+                            color: 'var(--konami-yellow)',
+                            fontSize: '13px',
+                            fontWeight: 800,
+                            margin: '8px 0 0',
+                          }}
+                        >
+                          {t.prize_pool}
+                        </p>
+                      ) : null}
+                      <div
+                        className="progress-track"
+                        role="progressbar"
+                        aria-valuenow={count}
+                        aria-valuemin={0}
+                        aria-valuemax={max}
+                        aria-label={`${count} of ${max} slots filled`}
+                      >
+                        <i style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+
+                    <a className="matchday-button primary full" href={`/tournaments/${t.id}`}>
+                      {isFull ? 'View Live Bracket' : 'Reserve Slot'} <span>↗</span>
+                    </a>
+                  </article>
+                );
+              })}
+            </div>
+          )}
         </section>
 
         {/* 7. OFFICIAL OVERVIEW & GAME MODES */}
@@ -405,20 +577,36 @@ export default function Home() {
           </p>
         </div>
       </footer>
+
+      {showTop && (
+        <button className="scroll-top-btn" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} aria-label="Scroll back to top">
+          ↑
+        </button>
+      )}
     </div>
   );
 }
 
 function Leaderboard() {
   const [rows, setRows] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
     api('/api/leaderboard')
       .then((data) => {
-        if (Array.isArray(data)) setRows(data);
+        if (!cancelled && Array.isArray(data)) setRows(data);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  if (loading) return <TableSkeleton rows={6} />;
 
   return (
     <div className="ranking-table">
@@ -429,15 +617,23 @@ function Leaderboard() {
         <span>WINS</span>
         <span>PTS</span>
       </div>
-      {rows.slice(0, 10).map((p, i) => (
-        <div className="ranking-row" key={p.id || i}>
-          <b>#{String(i + 1).padStart(2, '0')}</b>
-          <strong>{p.display_name}</strong>
-          <span>{p.played || 0}</span>
-          <span>{p.wins || 0}</span>
-          <em>{p.points || 0}</em>
-        </div>
-      ))}
+      {rows.slice(0, 10).map((p, i) => {
+        // Medal accent for the podium places.
+        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : null;
+        return (
+          <div
+            className="ranking-row"
+            key={p.id || i}
+            style={i < 3 ? { background: 'rgba(255,255,0,0.05)' } : undefined}
+          >
+            <b>{medal ? <span aria-hidden="true">{medal}</span> : `#${String(i + 1).padStart(2, '0')}`}</b>
+            <strong>{p.display_name}</strong>
+            <span>{p.played || 0}</span>
+            <span>{p.wins || 0}</span>
+            <em>{p.points || 0}</em>
+          </div>
+        );
+      })}
       {!rows.length && (
         <div className="ranking-empty">The leaderboard updates automatically after match results are confirmed.</div>
       )}
