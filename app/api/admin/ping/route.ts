@@ -47,9 +47,16 @@ export async function GET() {
 
   try {
     const t0 = Date.now();
-    const res = await fetch('https://openrouter.ai/api/v1/videos/models', { cache: 'no-store' });
+    const openrouterHeaders: Record<string, string> = {};
+    if (openrouterKey) {
+      openrouterHeaders['Authorization'] = `Bearer ${process.env.OPENROUTER_API_KEY}`;
+    }
+    const res = await fetch('https://openrouter.ai/api/v1/models', {
+      headers: openrouterHeaders,
+      cache: 'no-store',
+    });
     checks.openrouterApi = {
-      status: res.ok ? 'ONLINE' : 'DEGRADED',
+      status: res.ok || res.status === 401 ? 'ONLINE' : 'DEGRADED',
       latencyMs: Date.now() - t0,
     };
   } catch {
