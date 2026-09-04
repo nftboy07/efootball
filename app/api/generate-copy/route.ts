@@ -28,12 +28,17 @@ const providers = {
   },
 } as const;
 
+function fallbackCopy(prompt: string) {
+  return `⚡ UNREAL MATCHDAY MOMENT! ⚽🔥\n\n${prompt}\n\n🏆 Compete in the official eFootball 2026 Community Cup circuit for cash prizes & glory. Lock your lobby slot now at efootball2026.online! 🎮\n\n#eFootball #eFootball2026 #eFootballMobile #eSports #GamingCommunity #PES`;
+}
+
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
   if (!body || typeof body.prompt !== 'string' || body.prompt.trim().length < 5) {
     return NextResponse.json({ error: 'Enter a descriptive copy prompt.' }, { status: 400 });
   }
 
+  const prompt = body.prompt.trim();
   let provider = (body.provider as keyof typeof providers) || 'qwen';
   let config = providers[provider] || providers.qwen;
 
@@ -44,56 +49,50 @@ export async function POST(request: NextRequest) {
 
   const key = (config.key || OPENROUTER_KEY || DASHSCOPE_KEY || '').trim();
   if (!key) {
-    return NextResponse.json(
-      { error: 'No copy API key configured. Set OPENROUTER_API_KEY on Vercel.' },
-      { status: 503 }
-    );
+    return NextResponse.json({ text: fallbackCopy(prompt), provider: 'template-engine' });
   }
 
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${key}`,
-    'Content-Type': 'application/json',
-  };
+  try {
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${key}`,
+      'Content-Type': 'application/json',
+    };
 
-  if (provider === 'openrouter') {
-    headers['HTTP-Referer'] = 'https://www.efootball2026.online';
-    headers['X-Title'] = 'eFootball Community Cup';
+    if (provider === 'openrouter') {
+      headers['HTTP-Referer'] = 'https://www.efootball2026.online';
+      headers['X-Title'] = 'eFootball Community Cup';
+    }
+
+    if ('workspace' in config && config.workspace) {
+      headers['X-DashScope-WorkSpace'] = config.workspace;
+    }
+
+    const response = await fetch(config.url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model: config.model,
+        messages: [
+          {
+            role: 'system',
+            content:
+              'Write concise, high-energy social media copy and hashtags for an eFootball 2026 esports community tournament.',
+          },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.8,
+        max_tokens: 400,
+      }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    const text = data.choices?.[0]?.message?.content;
+    if (response.ok && typeof text === 'string' && text.trim()) {
+      return NextResponse.json({ text: text.trim(), provider });
+    }
+
+    return NextResponse.json({ text: fallbackCopy(prompt), provider: 'template-engine' });
+  } catch {
+    return NextResponse.json({ text: fallbackCopy(prompt), provider: 'template-engine' });
   }
-
-  if ('workspace' in config && config.workspace) {
-    headers['X-DashScope-WorkSpace'] = config.workspace;
-  }
-
-  const response = await fetch(config.url, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      model: config.model,
-      messages: [
-        {
-          role: 'system',
-          content:
-            'Write concise, high-energy social media copy and hashtags for an eFootball 2026 esports community tournament.',
-        },
-        { role: 'user', content: body.prompt.trim() },
-      ],
-      temperature: 0.8,
-      max_tokens: 400,
-    }),
-  });
-
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    return NextResponse.json(
-      { error: data.error?.message || data.error || `${provider} copy request failed (${response.status})` },
-      { status: response.status }
-    );
-  }
-
-  const text = data.choices?.[0]?.message?.content;
-  if (typeof text !== 'string' || !text.trim()) {
-    return NextResponse.json({ error: 'The provider returned no copy.' }, { status: 502 });
-  }
-
-  return NextResponse.json({ text: text.trim(), provider });
 }
