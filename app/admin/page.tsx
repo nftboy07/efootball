@@ -17,31 +17,12 @@ type Tournament = {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://efootball-tournament-kwq4.onrender.com';
 
-async function api(path: string, init?: RequestInit) {
-  const stripped = path.startsWith('/api/') ? path.slice(5) : path.replace(/^\//, '');
-  try {
-    const r = await fetch('/api/backend/' + stripped, { credentials: 'include', ...init });
-    if (r.ok) {
-      return await r.json().catch(() => ({}));
-    }
-  } catch {}
-
-  const directUrl = `${API_BASE}/api/${stripped}`;
-  const r = await fetch(directUrl, init);
-  const d = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(d.detail || d.error || 'Request failed');
-  return d;
-}
-
-async function localApi(path: string, init?: RequestInit) {
-  const r = await fetch(path, { credentials: 'include', ...init });
-  const d = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(d.error || d.detail || 'Request failed');
-  return d;
-}
-
 export default function Admin() {
   const [activeTab, setActiveTab] = useState<'reels' | 'tournaments' | 'leaderboard' | 'broadcast'>('reels');
+
+  // Admin Auth Key
+  const [adminKey, setAdminKey] = useState('admin123');
+  const [showKeyModal, setShowKeyModal] = useState(false);
 
   // Tournaments state
   const [name, setName] = useState('');
@@ -120,9 +101,34 @@ export default function Admin() {
   const [healthStatus, setHealthStatus] = useState<any>(null);
   const [healthLoading, setHealthLoading] = useState(false);
 
+  // Universal backend API caller with client auth key injection
+  async function api(path: string, init?: RequestInit) {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-Admin-Key': adminKey,
+      ...(init?.headers as Record<string, string> || {}),
+    };
+
+    const target = path.startsWith('http') ? path : `${API_BASE}${path.startsWith('/') ? path : '/' + path}`;
+    const res = await fetch(target, { ...init, headers });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.detail || data.error || `Request failed (${res.status})`);
+    }
+    return data;
+  }
+
+  async function localApi(path: string, init?: RequestInit) {
+    const r = await fetch(path, { credentials: 'include', ...init });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || d.detail || 'Request failed');
+    return d;
+  }
+
   // Storage synchronization on mount
   useEffect(() => {
     try {
+      const savedAdminKey = localStorage.getItem('efootball_admin_key');
       const savedToken = localStorage.getItem('efootball_ig_token');
       const savedUserId = localStorage.getItem('efootball_ig_user_id');
       const savedVideo = localStorage.getItem('efootball_last_video_url');
@@ -131,6 +137,7 @@ export default function Admin() {
       const savedCopy = localStorage.getItem('efootball_last_copy');
       const savedQueue = localStorage.getItem('efootball_reels_queue');
 
+      if (savedAdminKey) setAdminKey(savedAdminKey);
       if (savedToken) setIgToken(savedToken);
       if (savedUserId) setIgUserId(savedUserId);
       if (savedVideo) setVideoUrl(savedVideo);
@@ -144,6 +151,14 @@ export default function Admin() {
       }
     } catch {}
   }, []);
+
+  function saveAdminKey(k: string) {
+    setAdminKey(k);
+    try {
+      localStorage.setItem('efootball_admin_key', k);
+      setMsg('success: Admin passkey saved!');
+    } catch {}
+  }
 
   function saveQueueToStorage(newQueue: any[]) {
     setQueuedReels(newQueue);
@@ -607,7 +622,7 @@ export default function Admin() {
   async function load() {
     setLoading(true);
     try {
-      const data = await api('/tournaments');
+      const data = await api('/api/tournaments');
       if (Array.isArray(data)) {
         setTournaments(data);
         if (data.length && !selected) {
@@ -623,7 +638,7 @@ export default function Admin() {
 
   async function loadMatches(tournamentId: string) {
     try {
-      const data = await api(`/tournaments/${tournamentId}/matches`);
+      const data = await api(`/api/tournaments/${tournamentId}/matches`);
       if (Array.isArray(data)) {
         setArenaMatches(data);
         if (data.length && !reportMatchId) setReportMatchId(data[0].id);
@@ -635,7 +650,7 @@ export default function Admin() {
 
   async function loadPending() {
     try {
-      const data = await api('/evidence/pending');
+      const data = await api('/api/admin/submissions');
       if (Array.isArray(data)) setPendingSubs(data);
     } catch {
       setPendingSubs([]);
@@ -646,33 +661,14 @@ export default function Admin() {
     if (!name.trim()) return;
     setLoading(true);
     try {
-      const t = await api('/tournaments', {
+      const t = await api('/api/admin/tournaments', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, max_players: 8, prize_pool: prizePool || undefined }),
       });
       setName('');
-      setMsg('success: Tournament created: ' + t.id);
+      setMsg('success: Tournament created: ' + (t.id || name));
       await load();
-      setSelected(t.id);
-    } catch (e: any) {
-      setMsg('error: ' + e.message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function action(path: string, body?: any) {
-    setLoading(true);
-    try {
-      await api(path, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: body ? JSON.stringify(body) : undefined,
-      });
-      setMsg('success: Action completed');
-      await load();
-      if (selected) await loadMatches(selected);
+      if (t.id) setSelected(t.id);
     } catch (e: any) {
       setMsg('error: ' + e.message);
     } finally {
@@ -684,9 +680,8 @@ export default function Admin() {
     if (!selected) return;
     setLoading(true);
     try {
-      await api(`/tournaments/${selected}/prize-pool`, {
+      await api(`/api/admin/tournaments/${selected}/prize`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prize_pool: prizePool }),
       });
       setMsg(`success: Updated prize pool for ${selected}!`);
@@ -703,8 +698,40 @@ export default function Admin() {
     if (!window.confirm(`Remove ${displayName} from ${selected}?`)) return;
     setLoading(true);
     try {
-      await api(`/tournaments/${selected}/players/${playerId}`, { method: 'DELETE' });
+      await api(`/api/admin/tournaments/${selected}/players/${playerId}/kick`, { method: 'POST' });
       setMsg(`success: Removed ${displayName} from tournament.`);
+      await load();
+    } catch (e: any) {
+      setMsg('error: ' + e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function generateBracket() {
+    if (!selected) return;
+    setLoading(true);
+    try {
+      await api(`/api/admin/tournaments/${selected}/bracket`, { method: 'POST' });
+      setMsg('success: Generated 8-player bracket!');
+      await load();
+      await loadMatches(selected);
+    } catch (e: any) {
+      setMsg('error: ' + e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function attachRoomCode() {
+    if (!selected || !code.trim()) return;
+    setLoading(true);
+    try {
+      await api(`/api/admin/tournaments/${selected}/efootball-id`, {
+        method: 'POST',
+        body: JSON.stringify({ tournament_id: code.trim() }),
+      });
+      setMsg(`success: Activated room code ${code} on ${selected}!`);
       await load();
     } catch (e: any) {
       setMsg('error: ' + e.message);
@@ -721,9 +748,8 @@ export default function Admin() {
     }
     setLoading(true);
     try {
-      await api(`/matches/${reportMatchId}/score`, {
+      await api(`/api/admin/matches/${reportMatchId}/result`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ score_a: scoreP1, score_b: scoreP2 }),
       });
       setMsg(`success: Recorded score ${scoreP1}-${scoreP2} on fixture ${reportMatchId}!`);
@@ -740,10 +766,13 @@ export default function Admin() {
     if (!window.confirm(`Forfeit ${playerName}? The opposing player will advance immediately.`)) return;
     setLoading(true);
     try {
-      await api(`/matches/${matchId}/forfeit`, {
+      // Find the match
+      const m = arenaMatches.find((x) => x.id === matchId);
+      const scoreA = m?.player_a === forfeitedPlayerId ? 0 : 3;
+      const scoreB = m?.player_b === forfeitedPlayerId ? 0 : 3;
+      await api(`/api/admin/matches/${matchId}/result`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ forfeited_player_id: forfeitedPlayerId }),
+        body: JSON.stringify({ score_a: scoreA, score_b: scoreB, note: `Forfeit by ${playerName}` }),
       });
       setMsg(`success: Forfeited ${playerName}. Opponent advanced.`);
       if (selected) await loadMatches(selected);
@@ -754,17 +783,16 @@ export default function Admin() {
     }
   }
 
-  async function reviewSubmission(submissionId: string, decision: 'APPROVED' | 'REJECTED') {
+  async function reviewSubmission(submissionId: string) {
     setLoading(true);
     try {
-      await api(`/evidence/${submissionId}/review`, {
+      await api(`/api/admin/submissions/${submissionId}/confirm`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ decision }),
       });
-      setMsg(`success: Submission ${decision.toLowerCase()}!`);
+      setMsg(`success: Confirmed match result from submission!`);
       await loadPending();
       if (selected) await loadMatches(selected);
+      await loadLeaderboard();
     } catch (e: any) {
       setMsg('error: ' + e.message);
     } finally {
@@ -786,25 +814,49 @@ export default function Admin() {
   // LEADERBOARD
   async function loadLeaderboard() {
     try {
-      const res = await api('/leaderboard');
+      const res = await api('/api/leaderboard');
       if (Array.isArray(res)) setLeaderboardRows(res);
     } catch {}
   }
 
-  function addManualPlayer() {
+  async function addManualPlayer() {
     if (!newPlayerName.trim()) return;
-    const newEntry = {
-      id: 'P-' + Math.random().toString(36).substring(2, 7),
-      display_name: newPlayerName,
-      efootball_username: newPlayerId || newPlayerName.toLowerCase().replace(/\s+/g, '_'),
-      played: 1,
-      wins: 1,
-      points: 1250,
-    };
-    setLeaderboardRows([newEntry, ...leaderboardRows]);
-    setNewPlayerName('');
-    setNewPlayerId('');
-    setMsg(`success: Added athlete ${newEntry.display_name} to database!`);
+    setLoading(true);
+    try {
+      await api('/api/admin/athletes', {
+        method: 'POST',
+        body: JSON.stringify({
+          display_name: newPlayerName.trim(),
+          efootball_username: (newPlayerId || newPlayerName.toLowerCase().replace(/\s+/g, '_')).trim(),
+        }),
+      });
+      setMsg(`success: Registered athlete ${newPlayerName} to tournament database!`);
+      setNewPlayerName('');
+      setNewPlayerId('');
+      await loadLeaderboard();
+    } catch (e: any) {
+      setMsg('error: ' + e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function editPlayerPoints(pid: string, displayName: string, currentPoints: number) {
+    const newPts = window.prompt(`Adjust points for ${displayName}:`, String(currentPoints || '0'));
+    if (newPts === null || isNaN(Number(newPts))) return;
+    setLoading(true);
+    try {
+      await api(`/api/admin/athletes/${pid}/points`, {
+        method: 'POST',
+        body: JSON.stringify({ points: Number(newPts) }),
+      });
+      setMsg(`success: Updated ${displayName} points to ${newPts}!`);
+      await loadLeaderboard();
+    } catch (e: any) {
+      setMsg('error: ' + e.message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   function exportCSV() {
@@ -889,13 +941,60 @@ export default function Admin() {
             KONAMI
           </a>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span style={{ fontSize: '11px', background: '#00cc66', color: '#000', fontWeight: 900, padding: '2px 8px', borderRadius: '4px' }}>
-              SUPER ADMIN HUB 🔒
-            </span>
+            <button
+              onClick={() => setShowKeyModal(true)}
+              style={{
+                fontSize: '11px',
+                background: '#00cc66',
+                color: '#000',
+                fontWeight: 900,
+                padding: '3px 10px',
+                borderRadius: '4px',
+                border: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              🔒 AUTH KEY: {adminKey ? 'CONFIGURED ✓' : 'CLICK TO SET ⚙️'}
+            </button>
             <span style={{ fontSize: '11px', color: '#88a0ff' }}>eFootball™ 2026 Organizer Suite · v3.0 Master Hub</span>
           </div>
         </div>
       </header>
+
+      {/* ADMIN KEY MODAL */}
+      {showKeyModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div style={{ background: '#051145', border: '2px solid var(--konami-yellow)', borderRadius: '12px', padding: '24px', maxWidth: '420px', width: '100%' }}>
+            <h3 style={{ margin: '0 0 8px', color: 'var(--konami-yellow)', fontFamily: 'var(--font-display)', fontSize: '20px' }}>
+              🔑 Super Admin Secret Key
+            </h3>
+            <p style={{ fontSize: '13px', color: '#88a0ff', margin: '0 0 16px' }}>
+              Enter your secret admin key (e.g. <code>admin123</code>). It is automatically saved and injected into every admin operation header.
+            </p>
+            <input
+              type="password"
+              value={adminKey}
+              onChange={(e) => setAdminKey(e.target.value)}
+              placeholder="admin123"
+              style={{ width: '100%', padding: '10px 14px', background: '#030a38', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', borderRadius: '6px', fontSize: '14px', marginBottom: '16px' }}
+            />
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                onClick={() => { saveAdminKey(adminKey); setShowKeyModal(false); }}
+                style={{ flex: 1, background: 'var(--konami-yellow)', color: '#000', border: 'none', borderRadius: '6px', padding: '10px', fontWeight: 900, cursor: 'pointer', fontSize: '13px' }}
+              >
+                SAVE PASSKEY ✓
+              </button>
+              <button
+                onClick={() => setShowKeyModal(false)}
+                style={{ background: '#081766', color: '#fff', border: '1px solid #88a0ff', borderRadius: '6px', padding: '10px 16px', fontWeight: 800, cursor: 'pointer', fontSize: '13px' }}
+              >
+                CLOSE
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 2. HEADER */}
       <div className="konami-main-header">
@@ -1627,7 +1726,7 @@ export default function Admin() {
                     <p style={{ margin: '4px 0 10px', fontSize: '12px', color: '#aaa' }}>Generate 8-player single elimination bracket.</p>
                     <button
                       disabled={selectedTournament.players.length !== 8 || !!selectedTournament.bracket_generated}
-                      onClick={() => action(`/tournaments/${selectedTournament.id}/bracket`)}
+                      onClick={generateBracket}
                       style={{ width: '100%', background: 'var(--konami-yellow)', color: '#000', padding: '10px', borderRadius: '6px', fontWeight: 900, border: 'none', cursor: 'pointer', fontSize: '13px' }}
                     >
                       {selectedTournament.bracket_generated ? 'BRACKET GENERATED ✓' : 'GENERATE 8-PLAYER BRACKET ↗'}
@@ -1649,7 +1748,7 @@ export default function Admin() {
                       </button>
                       <button
                         disabled={!code.trim()}
-                        onClick={() => action(`/tournaments/${selectedTournament.id}/efootball-id`, { tournament_id: code })}
+                        onClick={attachRoomCode}
                         style={{ background: 'var(--konami-yellow)', color: '#000', padding: '8px 14px', border: 'none', borderRadius: '6px', fontWeight: 900, cursor: 'pointer', fontSize: '12px' }}
                       >
                         Activate
@@ -1735,7 +1834,7 @@ export default function Admin() {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '8px' }}>
                           <strong style={{ color: '#fff', fontSize: '13px' }}>{s.player_name || s.player_id}</strong>
                           <span style={{ fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 900, color: 'var(--konami-yellow)' }}>
-                            {s.claimed_score_a} - {s.claimed_score_b}
+                            {s.score_a} - {s.score_b}
                           </span>
                         </div>
                         <small style={{ color: '#88a0ff', display: 'block', margin: '2px 0 8px' }}>Match {s.match_id}</small>
@@ -1745,11 +1844,8 @@ export default function Admin() {
                           </a>
                         )}
                         <div style={{ display: 'flex', gap: '8px' }}>
-                          <button onClick={() => reviewSubmission(s.id, 'APPROVED')} style={{ flex: 1, background: '#00cc66', color: '#000', border: 'none', borderRadius: '4px', padding: '6px', fontWeight: 900, fontSize: '11px', cursor: 'pointer' }}>
-                            APPROVE ✓
-                          </button>
-                          <button onClick={() => reviewSubmission(s.id, 'REJECTED')} style={{ flex: 1, background: 'rgba(255,0,0,0.2)', color: '#ff6666', border: '1px solid #ff4444', borderRadius: '4px', padding: '6px', fontWeight: 800, fontSize: '11px', cursor: 'pointer' }}>
-                            REJECT ✕
+                          <button onClick={() => reviewSubmission(s.id)} style={{ flex: 1, background: '#00cc66', color: '#000', border: 'none', borderRadius: '4px', padding: '6px', fontWeight: 900, fontSize: '11px', cursor: 'pointer' }}>
+                            CONFIRM MATCH RESULT ✓
                           </button>
                         </div>
                       </div>
@@ -1829,12 +1925,7 @@ export default function Admin() {
                     <span style={{ color: '#00ff66', fontWeight: 800 }}>{p.wins || 0}</span>
                     <strong style={{ color: 'var(--konami-yellow)', fontSize: '15px' }}>{p.points || 0}</strong>
                     <button
-                      onClick={() => {
-                        const newPts = window.prompt(`Adjust points for ${p.display_name}:`, p.points || '0');
-                        if (newPts !== null) {
-                          setMsg(`success: Updated ${p.display_name} points to ${newPts}!`);
-                        }
-                      }}
+                      onClick={() => editPlayerPoints(p.id, p.display_name, p.points)}
                       style={{ background: '#081766', border: '1px solid var(--konami-yellow)', color: 'var(--konami-yellow)', borderRadius: '4px', padding: '4px 10px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}
                     >
                       ✏️ Edit Points
