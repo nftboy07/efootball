@@ -8,3 +8,8 @@ __pycache__
 
 # TypeScript incremental build cache
 *.tsbuildinfo
+
+# SQLite / Postgres local dumps
+*.db
+*.sqlite
+*.sqlite3

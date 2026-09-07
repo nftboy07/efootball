@@ -1,3 +1,11 @@
+"""
+DEPRECATED — DO NOT USE.
+This in-memory tournament store is dead code; it is never imported by main.py.
+The active tournament engine lives in db.py (PostgreSQL/SQLite-backed).
+The bracket pairings below happen to match db.py, but this file lacks SF/FINAL
+round generation and must not be used as the source of truth.
+"""
+
 from threading import RLock
 
 tournaments = {}

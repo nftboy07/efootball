@@ -54,7 +54,11 @@ class RequestSafetyMiddleware(BaseHTTPMiddleware):
 app.add_middleware(RequestSafetyMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=['*'],
+    allow_origins=(
+        [o.strip() for o in os.getenv('CORS_ORIGINS', '').split(',') if o.strip()]
+        if os.getenv('CORS_ORIGINS')
+        else ['*']
+    ),
     allow_credentials=False,
     allow_methods=['*'],
     allow_headers=['*'],
@@ -95,25 +99,33 @@ def startup():
         raise RuntimeError('DATABASE_URL and ADMIN_KEY are required in production')
     db.init(); db.check_connection()
 
-admin_failures={}
-def admin(k):
-    fingerprint=hashlib.sha256((k or 'missing').encode()).hexdigest()
+admin_failures: dict[str, list[float]] = {}
+
+def admin(k: str | None) -> None:
+    fingerprint = hashlib.sha256((k or 'missing').encode()).hexdigest()
     if redis_client:
         try:
-            rkey=f'rl:admin:{fingerprint}'
-            fails=int(redis_client.get(rkey) or 0)
-            if fails>=5:raise HTTPException(429,'Too many failed admin attempts. Try again later.')
+            rkey = f'rl:admin:{fingerprint}'
+            fails = int(redis_client.get(rkey) or 0)
+            if fails >= 5:
+                raise HTTPException(429, 'Too many failed admin attempts. Try again later.')
             if not db.auth_admin(k):
-                p=redis_client.pipeline(); p.incr(rkey); p.expire(rkey,300); p.execute()
-                raise HTTPException(401,'Admin authentication required')
+                redis_client.incr(rkey)
+                redis_client.expire(rkey, 300)
+                raise HTTPException(401, 'Admin authentication required')
             return
-        except HTTPException:raise
-        except Exception:pass
-    now=time.monotonic(); recent=[stamp for stamp in admin_failures.get(fingerprint,[]) if now-stamp<300]
-    if len(recent)>=5:raise HTTPException(429,'Too many failed admin attempts. Try again later.')
+        except HTTPException:
+            raise
+        except Exception:
+            pass
+    now = time.monotonic()
+    recent = [s for s in admin_failures.get(fingerprint, []) if now - s < 300]
+    if len(recent) >= 5:
+        raise HTTPException(429, 'Too many failed admin attempts. Try again later.')
     if not db.auth_admin(k):
-        recent.append(now); admin_failures[fingerprint]=recent
-        raise HTTPException(401,'Admin authentication required')
+        recent.append(now)
+        admin_failures[fingerprint] = recent
+        raise HTTPException(401, 'Admin authentication required')
 
 def player(k):
     p=db.auth_player(k)

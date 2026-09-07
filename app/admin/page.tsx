@@ -21,8 +21,8 @@ export default function Admin() {
   const [activeTab, setActiveTab] = useState<'reels' | 'tournaments' | 'leaderboard' | 'broadcast'>('reels');
 
   // Admin Auth Key
-  const [adminKey, setAdminKey] = useState('admin123');
-  const [showKeyModal, setShowKeyModal] = useState(false);
+  const [adminKey, setAdminKey] = useState('');
+  const [showKeyModal, setShowKeyModal] = useState(true);
 
   // Tournaments state
   const [name, setName] = useState('');
@@ -970,6 +970,7 @@ export default function Admin() {
             </h3>
             <p style={{ fontSize: '13px', color: '#88a0ff', margin: '0 0 16px' }}>
               Enter your secret admin key (e.g. <code>admin123</code>). It is automatically saved and injected into every admin operation header.
+              <br /><span style={{ color: '#ff4444', fontSize: '11px' }}>⚠️ Stored in browser localStorage — anyone with device access can read it. Default <code>admin123</code> is dev-only.</span>
             </p>
             <input
               type="password"
