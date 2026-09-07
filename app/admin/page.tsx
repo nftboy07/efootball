@@ -137,7 +137,8 @@ export default function Admin() {
       const savedCopy = localStorage.getItem('efootball_last_copy');
       const savedQueue = localStorage.getItem('efootball_reels_queue');
 
-      if (savedAdminKey) setAdminKey(savedAdminKey);
+      // Only restore saved admin key if it looks like a real key (not the dev default).
+      if (savedAdminKey && savedAdminKey.length >= 8) setAdminKey(savedAdminKey);
       if (savedToken) setIgToken(savedToken);
       if (savedUserId) setIgUserId(savedUserId);
       if (savedVideo) setVideoUrl(savedVideo);
