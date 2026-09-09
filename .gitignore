@@ -13,3 +13,9 @@ __pycache__
 *.db
 *.sqlite
 *.sqlite3
+
+# Python virtualenvs (created by .agents/setup)
+.venv/
+
+# Amp orb portal registrations (runtime-generated)
+.amp/portals/*

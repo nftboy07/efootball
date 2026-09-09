@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Orb resume: fast, idempotent readiness checks after orb wake.
+# No installs here (that is .agents/setup's job); must finish in seconds.
+# Always exits 0 so a warning never blocks wake; follow the printed hint
+# to repair an incomplete workspace.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+ready=1
+[ -d "node_modules" ] || { echo "resume: node_modules missing — run .agents/setup"; ready=0; }
+[ -x "apps/api/.venv/bin/python" ] || { echo "resume: apps/api/.venv missing — run .agents/setup"; ready=0; }
+[ -f ".env.local" ] || { echo "resume: .env.local missing — run .agents/setup"; ready=0; }
+
+node --version
+
+if [ "$ready" -eq 1 ]; then
+  echo "resume: workspace ready."
+else
+  echo "resume: workspace incomplete (see hints above)."
+fi
+exit 0

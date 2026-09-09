@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# Orb setup: install the repo's toolchain dependencies so fresh orbs start ready.
+# Idempotent and safe to re-run on warm snapshots. Non-interactive.
+# Never runs servers, watchers, or prompts here (see README for dev commands).
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+step() {
+  echo ""
+  echo "==> [${SECONDS}s] $*"
+}
+
+step "toolchain versions"
+node --version
+npm --version
+python3 --version
+
+# Pinned toolchain self-upgrades (orbs ship older npm/pip; without this the
+# upgrade notices return on every fresh orb). Both guards no-op instantly
+# when the pinned version is already active.
+PINNED_NPM="12.0.2"
+if [ "$(npm --version)" != "$PINNED_NPM" ]; then
+  time npm install -g "npm@${PINNED_NPM}" --no-audit --no-fund
+fi
+PINNED_PIP="26.2.1"
+
+# --- Next.js dependencies (repo root, npm + package-lock.json) ---
+# npm ci always reinstalls from scratch, so guard it with a fingerprint file
+# stored inside node_modules: a warm snapshot with matching lockfiles skips
+# the download entirely, a stale snapshot reinstalls exactly once.
+step "npm dependencies"
+FINGERPRINT_FILE="node_modules/.cache/orb-setup-fingerprint"
+CURRENT_FINGERPRINT="$(sha256sum package.json package-lock.json | sha256sum | cut -d' ' -f1).node-$(node --version).npm-$(npm --version)"
+if [ -f "$FINGERPRINT_FILE" ] && [ "$(cat "$FINGERPRINT_FILE")" = "$CURRENT_FINGERPRINT" ]; then
+  echo "node_modules matches the lockfile fingerprint; skipping npm ci."
+else
+  time npm ci --no-audit --no-fund
+  mkdir -p node_modules/.cache
+  echo "$CURRENT_FINGERPRINT" > "$FINGERPRINT_FILE"
+fi
+
+# --- FastAPI dependencies (apps/api, pip + requirements.txt) ---
+# pip already no-ops cheaply when requirements are satisfied, so no
+# fingerprint is needed; this is fast on warm snapshots.
+step "python dependencies"
+if [ ! -x "apps/api/.venv/bin/python" ]; then
+  time python3 -m venv apps/api/.venv
+fi
+time apps/api/.venv/bin/python -m pip install --quiet "pip==${PINNED_PIP}"
+time apps/api/.venv/bin/pip install --quiet -r apps/api/requirements.txt
+
+# --- Local env template (never overwrite an existing file) ---
+step "env template"
+if [ -f ".env.local" ]; then
+  echo ".env.local already exists; leaving it untouched."
+else
+  cp -- .env.example .env.local
+  echo "created .env.local from .env.example (edit secrets locally; never commit it)."
+fi
+
+step "setup done in ${SECONDS}s"
