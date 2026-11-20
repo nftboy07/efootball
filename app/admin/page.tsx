@@ -119,7 +119,8 @@ export default function Admin() {
   }
 
   async function localApi(path: string, init?: RequestInit) {
-    const r = await fetch(path, { credentials: 'include', ...init });
+    const headers = { ...(init?.headers as Record<string, string> || {}), 'X-Admin-Key': adminKey };
+    const r = await fetch(path, { credentials: 'include', ...init, headers });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.error || d.detail || 'Request failed');
     return d;
