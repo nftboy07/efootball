@@ -1,8 +1,12 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { serviceAdmin } from '../../../lib/admin-auth';
 import { TOURNAMENT_API } from '../../../lib/config';
 import { inspectTokenHealth } from '../../../lib/instagram';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  if (!serviceAdmin(request.headers.get('x-admin-key') || '').ok) {
+    return NextResponse.json({ error: 'Admin authentication required' }, { status: 401 });
+  }
   const start = Date.now();
   const checks: Record<string, { status: string; latencyMs: number; detail?: string }> = {};
 

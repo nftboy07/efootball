@@ -75,7 +75,7 @@ The repo root is a Next.js app. Import the GitHub repository into Vercel (or pus
 - `INSTAGRAM_ACCESS_TOKEN` / `INSTAGRAM_ACCOUNT_ID` — for 1-click Reels connect/publish
 - `DASHSCOPE_API_KEY` — optional, AI reel studio
 - `CLOUDINARY_URL` or `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` — optional extra evidence upload path
-- `CRON_SECRET` — optional, protects `/api/cron/auto-reel`
+- `CRON_SECRET` — required for `/api/cron/auto-reel` (the route rejects every request when it is unset)
 
 `vercel.json` schedules `/api/cron/auto-reel` every 4 hours.
 
